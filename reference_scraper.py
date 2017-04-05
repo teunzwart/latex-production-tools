@@ -47,7 +47,7 @@ class ScitationScraper:
         for ref in self.references:
             try:
                 doi = re.search(r"\\doi{(.*?)}", ref).group(1)
-                self.all_dois.append(doi.rstrip('/'))
+                self.all_dois.append(doi)
             except AttributeError:
                 self.no_dois.append(ref)
 
@@ -63,16 +63,20 @@ class ScitationScraper:
                     self.check_manually.append(ref)
 
     def get_names_doi_refs(self):
-        """ Extract author names associated with DOI's. """
+        """ Extract author names associated with DOI's using the Crossref api. """
         for i, ref in enumerate(self.all_dois):
+            print("Processing doi {0:>3} of {1}... ".format(i + 1, len(self.all_dois)), end='')
             try:
                 api_data = json.loads(requests.get("https://api.crossref.org/works/{}".format(ref), timeout=10).text)
             except requests.exceptions.Timeout:
                 self.check_manually.append(ref)
                 print("failed (connection timeout)")
                 continue
+            except json.decoder.JSONDecodeError:
+                self.check_manually.append(ref)
+                print("failed (did not receive a valid respone, the DOI may be malformed: {})".format(ref))
+                continue
             year = api_data['message']['issued']['date-parts'][0][0]
-            print("Processing doi {0:>3} of {1}... ".format(i + 1, len(self.all_dois)), end='')
             if year is None:
                 self.check_manually.append(ref)
                 print("failed (no year specified in api response)")
@@ -90,16 +94,28 @@ class ScitationScraper:
                 print("failed (no authors specified in api response)")
 
     def get_names_arxiv_refs(self):
-        # TODO: Get author names from XML api replies.
+        """Get names of authors of arXiv entries using the arXiv api."""
         for i, ref in enumerate(self.arxiv_ids):
+            print("Processing arXiv entry {0:>3} of {1}... ".format(i + 1, len(self.arxiv_ids)), end='')
             try:
-                data = requests.get("https://export.arxiv.org/api/query?search_query={}".format(ref), timeout=10).text
+                data = requests.get("http://export.arxiv.org/api/query?search_query={}".format(ref), timeout=10).text
             except requests.exceptions.Timeout:
                 self.check_manually.append(ref)
+                print("failed (connection timeout)")
                 continue
-            root = et.fromstring(data)
-            print("root", root)
-        
+            root = et.fromstring(requests.get('http://export.arxiv.org/api/query?search_query={}'.format(ref)).text)
+            # TODO: Improve XML parsing.
+            found_author = False
+            for z in root.find('.')[-1]:
+                try:
+                    author = z.find('{http://www.w3.org/2005/Atom}name').text
+                    self.names.append(author)
+                    found_author = True
+                except AttributeError:
+                    pass
+            if found_author:
+                print("succes")
+            
     def get_unique_names(self):
         """ Get unique names from a list of names. """
         name_dict = {}
@@ -113,6 +129,7 @@ class ScitationScraper:
             if abbrv_name not in name_dict or len(name_dict[abbrv_name]) < len(full_name):
                 name_dict[abbrv_name] = full_name
         self.unique_names = list(name_dict.values())
+        print("The references were written by {0} authors, of which {1} are unique.".format(len(self.names), len(self.unique_names)))
         #print(self.unique_names)
 
     def open_google_pages(self):
@@ -131,4 +148,4 @@ class ScitationScraper:
 
 if __name__ == '__main__':
     args = ScitationScraper.cli_parsing()
-    scitation_scraper = ScitationScraper(args.tex_file, debug=False)
+    scitation_scraper = ScitationScraper(args.tex_file, debug=True)
