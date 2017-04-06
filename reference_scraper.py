@@ -2,18 +2,17 @@
 Automatically get author names of references in a tex file.
 """
 
-from __future__ import print_function
+import sys
+if sys.version_info < (3, 6):
+    sys.exit("Can't execute script. At least Python 3.6 is required.")
 
 import argparse
 import json
 import re
-import requests
-import sys
+import urllib.request
+import socket
 import webbrowser
 import xml.etree.ElementTree as et
-
-if sys.version_info < (3, 0):
-    sys.exit("Can't execute script. At least Python 3 is required.")
 
 
 class ScitationScraper:
@@ -71,55 +70,61 @@ class ScitationScraper:
     def get_names_doi_refs(self):
         """Extract author names associated with DOI's using the Crossref api."""
         for i, ref in enumerate(self.all_dois):
-            print("Processing DOI {0:>{width}} of {1}... ".format(i + 1, len(self.all_dois), width=len(str(len(self.all_dois)))), end='')
+            print(f"Processing DOI {i+1:>{len(str(len(self.all_dois)))}} of {len(self.all_dois)}...", end='')
             try:
-                api_data = json.loads(requests.get("https://api.crossref.org/works/{}".format(ref), timeout=10).text)
-            except requests.exceptions.Timeout:
+                with urllib.request.urlopen(f"https://api.crossref.org/works/{ref}", timeout=10) as data:
+                    data = json.loads(data.read().decode('utf-8'))
+                    year = data['message']['issued']['date-parts'][0][0]
+                    if year is None:
+                        self.check_manually.append(ref)
+                        print(f"failed (no year specified in api response, {ref})")
+                        continue
+                    try:
+                        if year >= 2000:
+                            authors = data['message']['author']
+                            for a in authors:
+                                self.names.append(f"{a['given']} {a['family']}")
+                            print(f"succes (result from 2000 or later: {ref})")
+                        else:
+                            print(f"succes (but result too old: {ref})")
+                    except KeyError:
+                        self.check_manually.append(ref)
+                        print(f"failed (no authors specified in api response: {ref})")
+            except socket.timeout:
                 self.check_manually.append(ref)
-                print("failed (connection timeout)")
+                print(f"failed (connection timeout: {ref})")
                 continue
-            except json.decoder.JSONDecodeError:
+            except urllib.error.HTTPError as e:
                 self.check_manually.append(ref)
-                print("failed (did not receive a valid respone, the DOI may be malformed: {})".format(ref))
+                print(f"failed ({e}, the DOI may be malformed: {ref})")
                 continue
-            year = api_data['message']['issued']['date-parts'][0][0]
-            if year is None:
-                self.check_manually.append(ref)
-                print("failed (no year specified in api response)")
-                continue
-            try:
-                if year >= 2000:
-                    authors = api_data['message']['author']
-                    for a in authors:
-                        self.names.append("{0} {1}".format(a['given'], a['family']))
-                    print("succes (result from 2000 or later)")
-                else:
-                    print("succes (but result too old)")
-            except KeyError:
-                self.check_manually.append(ref)
-                print("failed (no authors specified in api response)")
 
     def get_names_arxiv_refs(self):
         """Get names of authors of arXiv entries using the arXiv api."""
         for i, ref in enumerate(self.arxiv_ids):
-            print("Processing arXiv entry {0:>{width}} of {1}... ".format(i + 1, len(self.arxiv_ids), width=len(str(len(self.arxiv_ids)))), end='')
+            print(f"Processing arXiv entry {i+1:>{len(str(len(self.arxiv_ids)))}} of {len(self.arxiv_ids)}...", end='')
             try:
-                data = et.fromstring(requests.get("http://export.arxiv.org/api/query?search_query={}".format(ref), timeout=10).text)
-            except requests.exceptions.Timeout:
+                with urllib.request.urlopen(f"http://export.arxiv.org/api/query?search_query={ref}", timeout=10) as data:
+                    # TODO: Improve XML parsing.
+                    data = et.fromstring(data.read())
+                    found_author = False
+                    for z in data.find('.')[-1]:
+                        try:
+                            author = z.find('{http://www.w3.org/2005/Atom}name').text
+                            self.names.append(author)
+                            found_author = True
+                        except AttributeError:
+                            pass
+                    if found_author:
+                        print(f"succes ({ref})")
+            except socket.timeout:
                 self.check_manually.append(ref)
-                print("failed (connection timeout)")
+                print(f"failed (connection timeout: {ref})")
                 continue
-            # TODO: Improve XML parsing.
-            found_author = False
-            for z in data.find('.')[-1]:
-                try:
-                    author = z.find('{http://www.w3.org/2005/Atom}name').text
-                    self.names.append(author)
-                    found_author = True
-                except AttributeError:
-                    pass
-            if found_author:
-                print("succes")
+            except urllib.error.HTTPError as e:
+                self.check_manually.append(ref)
+                print(f"failed ({e}, the arXiv identifier may be malformed: {ref})")
+                continue
 
     def get_unique_names(self):
         """Get unique names from a list of names."""
@@ -134,15 +139,15 @@ class ScitationScraper:
             if abbrv_name not in name_dict or len(name_dict[abbrv_name]) < len(full_name):
                 name_dict[abbrv_name] = full_name
         self.unique_names = list(name_dict.values())
-        print("The timely references were written by {0} authors, of which {1} are unique.".format(len(self.names), len(self.unique_names)))
+        print(f"The timely references were written by {len(self.names)} authors, of which {len(self.unique_names)} are unique.")
         print(sorted(self.unique_names, key=lambda x: x.split(' ')[-1]))
 
     def open_google_pages(self):
         print("Opening Google search pages (in batches of 10):")
         for i, name in enumerate(sorted(list(self.unique_names), key=lambda x: x.split(' ')[-1])):
-            webbrowser.open("https://www.google.com/search?q={0}+physics".format(name.replace(' ', '+')))
+            webbrowser.open(f"https://www.google.com/search?q={name.replace(' ', '+')}+physics")
             if (i + 1) % 10 == 0:
-                input("Opening {0}/{1}. Press enter to open next 10...".format(i + 1, len(self.unique_names)))
+                input(f"Opening {i+1}/{len(self.unique_names)}. Press enter to open next 10...")
 
     @staticmethod
     def cli_parsing():
