@@ -1,13 +1,20 @@
+"""
+Automatically get author names of references in a tex file.
+"""
+
 from __future__ import print_function
 
 import argparse
 import json
 import re
 import requests
+import sys
 import time
 import webbrowser
 import xml.etree.ElementTree as et
 
+if sys.version_info < (3, 0):
+    sys.exit("Can't execute script. At least Python 3 is required.")
 
 class ScitationScraper:
     def __init__(self, tex_file, debug=False):
@@ -19,7 +26,8 @@ class ScitationScraper:
         self.get_doi()
         self.parse_no_doi_refs()
         self.get_names_arxiv_refs()
-        self.get_names_doi_refs()
+        if not debug:
+            self.get_names_doi_refs()
         self.get_unique_names()
         if not debug:
             self.open_google_pages()
@@ -29,7 +37,6 @@ class ScitationScraper:
         if len(self.check_manually) == 0:
             print("There are no reference to check manually.")
         else:
-            # TODO: Handle DOI's that have to be handchecked nicely (open them automatically).
             print("The following references have to be checked by hand:")
             for ref in self.check_manually:
                 print(ref, '\n')
@@ -40,6 +47,7 @@ class ScitationScraper:
             tex_source = f.read()
         bibitem_regex = re.compile(r"\\bibitem{.*?}(.+?)(?=\\bibitem{|\\end{thebibliography})", re.DOTALL)
         self.references = bibitem_regex.findall(tex_source)
+        self.references = [re.sub("\s\s+|\\\\newblock|\n" , " ", r) for r in self.references]
         
     def get_doi(self):
         self.all_dois = []
@@ -59,7 +67,7 @@ class ScitationScraper:
                 arxiv_id = re.search(r"\\href{.*?}{arXiv:(.*?)}", ref).group(1)
                 self.arxiv_ids.append(arxiv_id)
             else:
-                if re.search(r"\(20\d{2}\)", ref):
+                if re.search(r"\(20\d{2}\)", ref) or re.search(r"\(20\d{2}--\)", ref):
                     self.check_manually.append(ref)
 
     def get_names_doi_refs(self):
@@ -67,21 +75,15 @@ class ScitationScraper:
         for i, ref in enumerate(self.all_dois):
             print("Processing DOI {0:>3} of {1}... ".format(i + 1, len(self.all_dois)), end='')
             try:
-                try:
-                    api_data = json.loads(requests.get("https://api.crossref.org/works/{}".format(ref), timeout=10).text)
-                except requests.exceptions.Timeout:
-                    self.check_manually.append(ref)
-                    print("failed (connection timeout)")
-                    continue
-                except json.decoder.JSONDecodeError:
-                    self.check_manually.append(ref)
-                    print("failed (did not receive a valid respone, the DOI may be malformed: {})".format(ref))
-                    continue
-            except AttributeError:  # Needed because the json error is not present in Python 2.
+                api_data = json.loads(requests.get("https://api.crossref.org/works/{}".format(ref), timeout=10).text)
+            except requests.exceptions.Timeout:
+                self.check_manually.append(ref)
+                print("failed (connection timeout)")
+                continue
+            except json.decoder.JSONDecodeError:
                 self.check_manually.append(ref)
                 print("failed (did not receive a valid respone, the DOI may be malformed: {})".format(ref))
                 continue
-                
             year = api_data['message']['issued']['date-parts'][0][0]
             if year is None:
                 self.check_manually.append(ref)
@@ -94,7 +96,7 @@ class ScitationScraper:
                         self.names.append("{0} {1}".format(a['given'], a['family']))
                     print("succes (result from 2000 or later)")
                 else:
-                    print("succes (result too old)")
+                    print("succes (but result too old)")
             except KeyError:
                 self.check_manually.append(ref)
                 print("failed (no authors specified in api response)")
@@ -124,10 +126,9 @@ class ScitationScraper:
             
     def get_unique_names(self):
         """ Get unique names from a list of names. """
-        # TODO: Handle unicode in Python 2.
         name_dict = {}
         for name in list(set(self.names)):
-            full_name = re.sub("\s\s+" , " ", name.replace('.', ' '))  # Remove any dots and extraneous whitspace.
+            full_name = re.sub("\s\s+" , " ", name.replace('.', ' '))  # Remove any dots and extraneous whitespace.
             abbrv_name = full_name
             # Create a normalized name that can be used to compare names with different levels of abbrevation.
             # TODO: Remove any accents and special characters from names to improve comparison.
@@ -136,23 +137,25 @@ class ScitationScraper:
             if abbrv_name not in name_dict or len(name_dict[abbrv_name]) < len(full_name):
                 name_dict[abbrv_name] = full_name
         self.unique_names = list(name_dict.values())
-        print("The references were written by {0} authors, of which {1} are unique.".format(len(self.names), len(self.unique_names)))
-        print(self.unique_names)
+        print("The timely references were written by {0} authors, of which {1} are unique.".format(len(self.names), len(self.unique_names)))
+        print(sorted(self.unique_names, key=lambda x: x.split(' ')[-1]))
 
     def open_google_pages(self):
-        print("Opening Google search pages (in batches of 10)")
-        for i, name in enumerate(sorted(list(self.unique_names))):
+        print("Opening Google search pages (in batches of 10):")
+        for i, name in enumerate(sorted(list(self.unique_names), key=lambda x: x.split(' ')[-1])):
             webbrowser.open("https://www.google.com/search?q={0}+physics".format(name.replace(' ', '+')))
             if (i + 1) % 10 == 0:
-                input("Press enter to open next 10...")
+                input("Opening {0}/{1}. Press enter to open next 10...".format(i + 1, len(self.unique_names)))
 
     @staticmethod
     def cli_parsing():
         parser = argparse.ArgumentParser()
         parser.add_argument('tex_file')
+        parser.add_argument('--debug', action="store_true")
         args = parser.parse_args()
+        print(args)
         return args
 
 if __name__ == '__main__':
     args = ScitationScraper.cli_parsing()
-    scitation_scraper = ScitationScraper(args.tex_file)
+    scitation_scraper = ScitationScraper(args.tex_file, args.debug)
