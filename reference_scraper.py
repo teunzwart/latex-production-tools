@@ -29,7 +29,7 @@ class ScitationScraper:
         if len(self.check_manually) == 0:
             print("There are no reference to check manually.")
         else:
-            # TODO: Handle doi's that have to be handchecked nicely (open them automatically).
+            # TODO: Handle DOI's that have to be handchecked nicely (open them automatically).
             print("The following references have to be checked by hand:")
             for ref in self.check_manually:
                 print(ref, '\n')
@@ -52,7 +52,7 @@ class ScitationScraper:
                 self.no_dois.append(ref)
 
     def parse_no_doi_refs(self):
-        """Parse references without doi's."""
+        """Parse references without DOI's."""
         self.arxiv_ids = []
         for ref in self.no_dois:
             if "arxiv" in ref:
@@ -65,17 +65,23 @@ class ScitationScraper:
     def get_names_doi_refs(self):
         """ Extract author names associated with DOI's using the Crossref api. """
         for i, ref in enumerate(self.all_dois):
-            print("Processing doi {0:>3} of {1}... ".format(i + 1, len(self.all_dois)), end='')
+            print("Processing DOI {0:>3} of {1}... ".format(i + 1, len(self.all_dois)), end='')
             try:
-                api_data = json.loads(requests.get("https://api.crossref.org/works/{}".format(ref), timeout=10).text)
-            except requests.exceptions.Timeout:
-                self.check_manually.append(ref)
-                print("failed (connection timeout)")
-                continue
-            except json.decoder.JSONDecodeError:
+                try:
+                    api_data = json.loads(requests.get("https://api.crossref.org/works/{}".format(ref), timeout=10).text)
+                except requests.exceptions.Timeout:
+                    self.check_manually.append(ref)
+                    print("failed (connection timeout)")
+                    continue
+                except json.decoder.JSONDecodeError:
+                    self.check_manually.append(ref)
+                    print("failed (did not receive a valid respone, the DOI may be malformed: {})".format(ref))
+                    continue
+            except AttributeError:  # Needed because the json error is not present in Python 2.
                 self.check_manually.append(ref)
                 print("failed (did not receive a valid respone, the DOI may be malformed: {})".format(ref))
                 continue
+                
             year = api_data['message']['issued']['date-parts'][0][0]
             if year is None:
                 self.check_manually.append(ref)
@@ -118,6 +124,7 @@ class ScitationScraper:
             
     def get_unique_names(self):
         """ Get unique names from a list of names. """
+        # TODO: Handle unicode in Python 2.
         name_dict = {}
         for name in list(set(self.names)):
             full_name = re.sub("\s\s+" , " ", name.replace('.', ' '))  # Remove any dots and extraneous whitspace.
@@ -130,13 +137,13 @@ class ScitationScraper:
                 name_dict[abbrv_name] = full_name
         self.unique_names = list(name_dict.values())
         print("The references were written by {0} authors, of which {1} are unique.".format(len(self.names), len(self.unique_names)))
-        #print(self.unique_names)
+        print(self.unique_names)
 
     def open_google_pages(self):
         print("Opening Google search pages (in batches of 10)")
-        for index, name in enumerate(sorted(list(self.names))):
+        for i, name in enumerate(sorted(list(self.unique_names))):
             webbrowser.open("https://www.google.com/search?q={0}+physics".format(name.replace(' ', '+')))
-            if (index + 1) % 10 == 0:
+            if (i + 1) % 10 == 0:
                 input("Press enter to open next 10...")
 
     @staticmethod
@@ -148,4 +155,4 @@ class ScitationScraper:
 
 if __name__ == '__main__':
     args = ScitationScraper.cli_parsing()
-    scitation_scraper = ScitationScraper(args.tex_file, debug=True)
+    scitation_scraper = ScitationScraper(args.tex_file)
