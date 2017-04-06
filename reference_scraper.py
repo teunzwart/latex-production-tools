@@ -9,20 +9,19 @@ import json
 import re
 import requests
 import sys
-import time
 import webbrowser
 import xml.etree.ElementTree as et
 
 if sys.version_info < (3, 0):
     sys.exit("Can't execute script. At least Python 3 is required.")
 
+
 class ScitationScraper:
     def __init__(self, tex_file, debug=False):
         self.names = []
         self.check_manually = []
-        
+
         self.get_bibtex_items(tex_file)
-        
         self.get_doi()
         self.parse_no_doi_refs()
         self.get_names_arxiv_refs()
@@ -41,14 +40,13 @@ class ScitationScraper:
             for ref in self.check_manually:
                 print(ref, '\n')
 
-            
     def get_bibtex_items(self, tex_file):
         with open(tex_file, 'r') as f:
             tex_source = f.read()
         bibitem_regex = re.compile(r"\\bibitem{.*?}(.+?)(?=\\bibitem{|\\end{thebibliography})", re.DOTALL)
         self.references = bibitem_regex.findall(tex_source)
-        self.references = [re.sub("\s\s+|\\\\newblock|\n" , " ", r) for r in self.references]
-        
+        self.references = [re.sub("\s\s+|\\\\newblock|\n", " ", r) for r in self.references]
+
     def get_doi(self):
         self.all_dois = []
         self.no_dois = []
@@ -71,9 +69,9 @@ class ScitationScraper:
                     self.check_manually.append(ref)
 
     def get_names_doi_refs(self):
-        """ Extract author names associated with DOI's using the Crossref api. """
+        """Extract author names associated with DOI's using the Crossref api."""
         for i, ref in enumerate(self.all_dois):
-            print("Processing DOI {0:>3} of {1}... ".format(i + 1, len(self.all_dois)), end='')
+            print("Processing DOI {0:>{width}} of {1}... ".format(i + 1, len(self.all_dois), width=len(str(len(self.all_dois)))), end='')
             try:
                 api_data = json.loads(requests.get("https://api.crossref.org/works/{}".format(ref), timeout=10).text)
             except requests.exceptions.Timeout:
@@ -104,17 +102,16 @@ class ScitationScraper:
     def get_names_arxiv_refs(self):
         """Get names of authors of arXiv entries using the arXiv api."""
         for i, ref in enumerate(self.arxiv_ids):
-            print("Processing arXiv entry {0:>3} of {1}... ".format(i + 1, len(self.arxiv_ids)), end='')
+            print("Processing arXiv entry {0:>{width}} of {1}... ".format(i + 1, len(self.arxiv_ids), width=len(str(len(self.arxiv_ids)))), end='')
             try:
-                data = requests.get("http://export.arxiv.org/api/query?search_query={}".format(ref), timeout=10).text
+                data = et.fromstring(requests.get("http://export.arxiv.org/api/query?search_query={}".format(ref), timeout=10).text)
             except requests.exceptions.Timeout:
                 self.check_manually.append(ref)
                 print("failed (connection timeout)")
                 continue
-            root = et.fromstring(requests.get('http://export.arxiv.org/api/query?search_query={}'.format(ref)).text)
             # TODO: Improve XML parsing.
             found_author = False
-            for z in root.find('.')[-1]:
+            for z in data.find('.')[-1]:
                 try:
                     author = z.find('{http://www.w3.org/2005/Atom}name').text
                     self.names.append(author)
@@ -123,16 +120,16 @@ class ScitationScraper:
                     pass
             if found_author:
                 print("succes")
-            
+
     def get_unique_names(self):
-        """ Get unique names from a list of names. """
+        """Get unique names from a list of names."""
         name_dict = {}
         for name in list(set(self.names)):
-            full_name = re.sub("\s\s+" , " ", name.replace('.', ' '))  # Remove any dots and extraneous whitespace.
+            full_name = re.sub("\s\s+", " ", name.replace('.', ' '))  # Remove any dots and extraneous whitespace.
             abbrv_name = full_name
             # Create a normalized name that can be used to compare names with different levels of abbrevation.
             # TODO: Remove any accents and special characters from names to improve comparison.
-            abbrv_name = ' '.join([n[:1] for n in abbrv_name.split(' ')[:-1]] +  [abbrv_name.split(' ')[-1]])
+            abbrv_name = ' '.join([n[:1] for n in abbrv_name.split(' ')[:-1]] + [abbrv_name.split(' ')[-1]])
             abbrv_name = abbrv_name.lower()
             if abbrv_name not in name_dict or len(name_dict[abbrv_name]) < len(full_name):
                 name_dict[abbrv_name] = full_name
@@ -153,8 +150,8 @@ class ScitationScraper:
         parser.add_argument('tex_file')
         parser.add_argument('--debug', action="store_true")
         args = parser.parse_args()
-        print(args)
         return args
+
 
 if __name__ == '__main__':
     args = ScitationScraper.cli_parsing()
