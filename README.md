@@ -10,4 +10,4 @@ Any references that could not be processed are shown at the end of the program t
 python reference_scraper.py [texfile]    
 ```
 
-Because names may include non-ASCII characters, this only works with Python 3.6 and up, which handles unicode natively
+Because names may include non-ASCII characters and f-strings are used, this only works with Python 3.6 and up, which handles unicode natively.
