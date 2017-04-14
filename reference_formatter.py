@@ -17,7 +17,8 @@ import socket
 JOURNAL_ABBRVS = {"Nuclear Physics B":"Nucl. Phys. B",
                   "American Journal of Physics": "Am. J. Phys",
                   "Communications in Mathematical Physics": "Commun. Math. Phys.",
-                  "J Stat Phys": "J. Stat. Phys."}
+                  "Nature Physics": "Nat. Phys.",
+                  "Journal of Statistical Physics": "J. Stat. Phys."}
 
 class Reference:
     def __init__(self, bibitem_data, bibitem_identifier):
@@ -45,18 +46,27 @@ class Reference:
                 given_name = auth['given'].split("-")
                 given_name = "-".join([g[:1] + "." for g in given_name])
             else:
-                given_name = auth['given'][:1] + "."
-                self.authors[i] = given_name + " " + auth['family']
+                given_name = auth['given'].split()
+                given_name = " ".join(a[:1] + "." for a in given_name)
+            self.authors[i] = given_name + " " + auth['family']
         if len(self.authors) == 1:
             self.authors = self.authors[0]
         else:
             self.authors = ", ".join(self.authors[:-1]) + " and " + self.authors[-1]
 
     def format_short_journal(self):
-        pass
+        if len(self.short_journal) != 0:
+            self.short_journal = self.short_journal[0]
+        else:
+            self.short_journal = None
+        if self.journal in JOURNAL_ABBRVS.keys():
+            self.short_journal = JOURNAL_ABBRVS[self.journal]
 
     def format_journal(self):
-        pass
+        if len(self.journal) != 0:
+            self.journal = self.journal[0]
+        else:
+            self.journal = None
 
 class ReferenceFormatter:
     def __init__(self, tex_file, debug=False):
@@ -77,7 +87,7 @@ class ReferenceFormatter:
         references = bibitem_regex.findall(tex_source)
         for ref in references:
             bibitem_identifier = re.search(r"\\bibitem{(.*?)}", ref).group(1)
-            ref_data = Reference(ref, bibitem_identifier)
+            ref_data = Reference(ref.rstrip(), bibitem_identifier)
             self.references.append(ref_data)
 
     def get_dois(self):
@@ -86,7 +96,7 @@ class ReferenceFormatter:
                 # print(ref.bibitem_data)
                 doi = re.search(r"(10\.\d{4,}\/\S+[^}])", ref.bibitem_data)
                 # print(doi.group(1))
-                ref.doi = doi.group(1)
+                ref.doi = doi.group(1).rstrip()
                 ref.has_doi = True
             except AttributeError:
                print("NO DOI")
@@ -94,13 +104,13 @@ class ReferenceFormatter:
     def get_crossref_data(self):
         """Extract author names associated with DOI's using the Crossref api."""
         for i, ref in enumerate(self.references):
-            print(f"Processing reference {i+1:>{len(str(len(self.references)))}} of {len(self.references)}...", end='')
+            print(f"Processing reference {i+1:>{len(str(len(self.references)))}} of {len(self.references)}... ", end='')
             if not ref.has_doi:
                 continue
             try:
-                print(ref.doi)
                 with urllib.request.urlopen(f"https://api.crossref.org/works/{ref.doi}", timeout=10) as data:
                     ref.crossref_data = json.loads(data.read().decode('utf-8'))
+                    print(f"succes ({ref.doi})")
             except socket.timeout:
                 self.check_manually.append(ref)
                 print(f"failed (connection timeout: {ref.doi})")
@@ -131,23 +141,12 @@ class ReferenceFormatter:
                     pass
                 try:
                     ref.journal = ref.crossref_data['message']["container-title"]
-                    print(ref.journal)
-                    if len(ref.journal) != 0:
-                        ref.journal = ref.journal[0]
-                    else:
-                        ref.journal = None
+                    ref.format_journal()
                 except KeyError:
                     pass
                 try:
                     ref.short_journal = ref.crossref_data['message']["short-container-title"]
-                    if len(ref.short_journal) != 0:
-                        ref.short_journal = ref.short_journal[0]
-                    else:
-                        ref.short_journal = None
-                    if ref.short_journal in JOURNAL_ABBRVS.keys():
-                        print("PROBLEM", ref.journal)
-                        ref.short_journal = JOURNAL_ABBRVS[ref.short_journal]
-                        print("Succesfully shortened")
+                    ref.format_short_journal()
                 except KeyError:
                     pass
                 try:
@@ -172,11 +171,13 @@ class ReferenceFormatter:
             if ref.has_doi:
                 if ref.item_type == "journal-article":
                     if "Journal of Statistical Mechanics" in ref.journal:
-                        ref.formatted_reference = f"{ref.authors}, {ref.title}, {ref.short_journal} {ref.page} ({ref.year}), {ref.doi}."
-                    elif ref.page and ref.issue and ref.volume:
-                        ref.formatted_reference = f"{ref.authors}, {ref.title}, {ref.short_journal} {ref.volume}({ref.issue}), {ref.page} ({ref.year}), {ref.doi}."
+                        ref.formatted_reference = f"{ref.authors}, {{\it {ref.title}}}, {ref.short_journal} {ref.page} ({ref.year}), \doi{{{ref.doi}}}."
+                    elif ref.page and ref.volume:
+                        ref.formatted_reference = f"{ref.authors}, {{\it {ref.title}}}, {ref.short_journal} \\textbf{{{ref.volume}}}, {ref.page} ({ref.year}), \doi{{{ref.doi}}}."
+                    elif ref.article_number and ref.volume:
+                        ref.formatted_reference = f"{ref.authors}, {{\it {ref.title}}}, {ref.short_journal} \\textbf{{{ref.volume}}}, {ref.article_number} ({ref.year}), \doi{{{ref.doi}}}."
                     elif ref.issue and ref.volume:
-                        ref.formatted_reference = f"{ref.authors}, {ref.title}, {ref.short_journal} {ref.volume}, {ref.issue} ({ref.year}), {ref.doi}."
+                        ref.formatted_reference = f"{ref.authors}, {{\it {ref.title}}}, {ref.short_journal} \\textbf{{{ref.volume}}}, {ref.issue} ({ref.year}), \doi{{{ref.doi}}}."
                     print(ref.formatted_reference)
 
     def rewrite_tex_file(self):
@@ -185,8 +186,9 @@ class ReferenceFormatter:
             tex_data = data.read()
         for ref in self.references:
             if ref.formatted_reference:
-                tex_data = tex_data.replace(ref.bibitem_data, f"{ref.bibitem_data}\n\n#{ref.formatted_reference}")
-                # re.sub(ref.bibitem_data, f"{ref.bibitem_data}\n#{ref.formatted_reference}\n\n", tex_data)
+                tex_data = tex_data.replace(ref.bibitem_data, f"TO CHECK\n{ref.bibitem_data}\n\n%{ref.formatted_reference}\n\n\n")
+            else:
+                tex_data = tex_data.replace(ref.bibitem_data, f"TO CHECK\n{ref.bibitem_data}\n\n")
         with open(self.tex_file, 'w') as tex_file:
             tex_file.write(tex_data)
         
