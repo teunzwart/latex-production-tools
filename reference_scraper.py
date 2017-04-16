@@ -15,21 +15,15 @@ import webbrowser
 import xml.etree.ElementTree as et
 
 
-class ScitationScraper:
-    def __init__(self, tex_file, debug=False):
+class ReferenceScraper:
+    def __init__(self, tex_file):
+        self.tex_file = tex_file
         self.names = []
         self.check_manually = []
-
-        self.get_bibtex_items(tex_file)
-        self.get_doi()
-        self.parse_no_doi_refs()
-        self.get_names_arxiv_refs()
-        if not debug:
-            self.get_names_doi_refs()
-        self.get_unique_names()
-        if not debug:
-            self.open_google_pages()
-        self.parse_manually_checked_references()
+        self.all_dois = []
+        self.no_dois = []
+        self.references = None
+        self.arxiv_ids = []
 
     def parse_manually_checked_references(self):
         if len(self.check_manually) == 0:
@@ -39,16 +33,14 @@ class ScitationScraper:
             for ref in self.check_manually:
                 print(ref, '\n')
 
-    def get_bibtex_items(self, tex_file):
-        with open(tex_file, 'r') as f:
+    def get_bibtex_items(self):
+        with open(self.tex_file, 'r') as f:
             tex_source = f.read()
         bibitem_regex = re.compile(r"\\bibitem{.*?}(.+?)(?=\\bibitem{|\\end{thebibliography})", re.DOTALL)
         self.references = bibitem_regex.findall(tex_source)
         self.references = [re.sub("\s\s+|\\\\newblock|\n", " ", r) for r in self.references]
 
     def get_doi(self):
-        self.all_dois = []
-        self.no_dois = []
         for ref in self.references:
             try:
                 doi = re.search(r"\\doi{(.*?)}", ref).group(1)
@@ -58,7 +50,6 @@ class ScitationScraper:
 
     def parse_no_doi_refs(self):
         """Parse references without DOI's."""
-        self.arxiv_ids = []
         for ref in self.no_dois:
             if "arxiv" in ref:
                 arxiv_id = re.search(r"\\href{.*?}{arXiv:(.*?)}", ref).group(1)
@@ -70,7 +61,7 @@ class ScitationScraper:
     def get_names_doi_refs(self):
         """Extract author names associated with DOI's using the Crossref api."""
         for i, ref in enumerate(self.all_dois):
-            print(f"Processing DOI {i+1:>{len(str(len(self.all_dois)))}} of {len(self.all_dois)}...", end='')
+            print(f"Processing DOI {i+1:>{len(str(len(self.all_dois)))}} of {len(self.all_dois)}... ", end='')
             try:
                 with urllib.request.urlopen(f"https://api.crossref.org/works/{ref}", timeout=10) as data:
                     data = json.loads(data.read().decode('utf-8'))
@@ -159,5 +150,15 @@ class ScitationScraper:
 
 
 if __name__ == '__main__':
-    args = ScitationScraper.cli_parsing()
-    scitation_scraper = ScitationScraper(args.tex_file, args.debug)
+    args = ReferenceScraper.cli_parsing()
+    reference_scraper = ReferenceScraper(args.tex_file)
+    reference_scraper.get_bibtex_items()
+    reference_scraper.get_doi()
+    reference_scraper.parse_no_doi_refs()
+    reference_scraper.get_names_arxiv_refs()
+    if not args.debug:
+        reference_scraper.get_names_doi_refs()
+    reference_scraper.get_unique_names()
+    if not args.debug:
+        reference_scraper.open_google_pages()
+    reference_scraper.parse_manually_checked_references()
