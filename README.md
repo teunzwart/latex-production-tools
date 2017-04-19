@@ -1,4 +1,4 @@
-### SciPost reference scraper
+### LaTeX reference scraper
 
 Automatically extract the names of authors from references in a tex file given a DOI or arXiv identifier, and open a Google search page for that name.
 Also makes sure to only extract references from 2000 or later and get only one instance of an author name.
