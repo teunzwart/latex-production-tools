@@ -22,6 +22,33 @@ def get_relevant_warnings(log_file):
     undefined_references = re.findall(r"LaTeX Warning: Citation `.*?' on page .*", log_file)
     return overfull_lines + undefined_references
 
+
+def convert_equations(tex_source):
+    """
+    Automatically insert math atoms in a tex file ($[]$ -> ${[]}$).
+
+    Inpsired by http://stackoverflow.com/questions/14182879/regex-to-match-latex-equations
+    """
+    regex = r"""
+    (?<!\\)    # negative look-behind to make sure start is not escaped
+    (?:        # start non-capture group for all possible match starts
+        # group 1, match dollar signs only
+        # single or double dollar sign enforced by look-arounds
+        ((?<!\$)\${1}(?!\$))|
+        # group 2, match escaped parenthesis
+        (\\\()
+    )
+    (.*?(.*?)?.*?)  # match everything in between
+    (?<!\\)  # negative look-behind to make sure end is not escaped
+        # if group 1 was start, match \1
+        (?(1)(?<!\$)\1(?!\$)|
+        # if group 2 was start, escaped parenthesis is end
+    (?(2)\\\)))
+    """
+    regex = re.compile(regex, re.MULTILINE | re.VERBOSE)
+    tex_source = re.sub(regex, "${\\3}$", tex_source)
+    return tex_source
+
         
 def cli_parser():
     parser = argparse.ArgumentParser()
