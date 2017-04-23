@@ -27,10 +27,12 @@ class Reference:
         self.item_type = None
         self.doi = None
         self.arxiv_id = None
+        self.arxiv_id_with_version = None
         self.arxiv_data = None
         self.crossref_data = None
         self.authors = None
         self.full_authors = None
+        self.first_author_last_name = None
         self.title = None
         self.abstract = None
         self.journal = None
@@ -61,6 +63,7 @@ class Reference:
         """Extract the arXiv id for a bibitem entry."""
         try:
             arxiv_id = re.search(r"abs\/(.*?)(?=\ |}|$)|arxiv:(.*?)(?=\ |}|$)", self.bibitem_data)
+            self.arxiv_id_with_version = arxiv_id.group(1).rstrip()
             self.arxiv_id = re.sub("v\d{1,2}$", "", arxiv_id.group(1).rstrip())
         except AttributeError:
             pass
@@ -91,6 +94,8 @@ class Reference:
             else:
                 given_name = given_name[:1] + "."
             self.authors[i] = given_name + " " + family_name
+        self.first_author_last_name = " ".join([a for a in self.authors[0].replace(".", "").split() if len(a) > 1])
+        print(self.first_author_last_name)
         if len(self.authors) == 1:
             self.authors = self.authors[0]
             self.full_authors = self.full_authors[0]
@@ -127,7 +132,7 @@ class Reference:
         try:
             crossref_data = requests.get(f"https://api.crossref.org/works/{self.doi}", timeout=10).text
             self.crossref_data = json.loads(crossref_data)["message"]
-            return f"succes ({self.doi})"
+            return "succes"
         except requests.exceptions.Timeout:
             return f"failed (connection timeout: {self.doi})"
         except requests.exceptions.HTTPError as e:

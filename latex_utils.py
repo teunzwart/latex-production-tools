@@ -4,6 +4,7 @@ Utilities to work with LaTeX files.
 
 import argparse
 import re
+import unicodedata
 
 def read_tex_file(tex_file, encoding="utf-8"):
     with open(tex_file, 'r', encoding=encoding) as data:
@@ -48,6 +49,10 @@ def convert_equations(tex_source):
     regex = re.compile(regex, re.MULTILINE | re.VERBOSE)
     tex_source = re.sub(regex, "${\\3}$", tex_source)
     return tex_source
+
+
+def remove_accented_characters(string):
+    return unicodedata.normalize('NFD', string).encode('ascii', 'ignore').decode('utf-8')
 
         
 def cli_parser():
