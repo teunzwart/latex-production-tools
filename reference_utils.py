@@ -140,24 +140,29 @@ class Reference:
 
     def get_arxiv_data(self):
         """Get arXiv api data."""
-        try:
-            self.arxiv_data = requests.get(f"https://export.arxiv.org/api/query?search_query={self.arxiv_id}", timeout=10).text
-            return f"succes ({self.arxiv_id})"
-        except requests.exceptions.Timeout:
-            return f"failed (connection timeout: {self.arxiv_id})"
-        except requests.exceptions.HTTPError as e:
-            return f"failed ({e})"        
+        if self.arxiv_id:
+            try:
+                self.arxiv_data = requests.get(f"https://export.arxiv.org/api/query?search_query={self.arxiv_id}", timeout=10).text
+                return f"succes ({self.arxiv_id})"
+            except requests.exceptions.Timeout:
+                return f"failed (connection timeout: {self.arxiv_id})"
+            except requests.exceptions.HTTPError as e:
+                return f"failed ({e})"        
         
     def extract_arxiv_reference_data(self):
-        soup = BeautifulSoup(self.arxiv_data, "html5lib")
-        self.title = re.sub(" +", " ", re.sub("\n", "", soup.entry.title.string.strip()))
-        self.authors = [a.string for a in soup.find_all("name")]
-        self.year = soup.published.string.split("-")[0]
-        self.abstract = soup.find("summary").string.strip()
-        try:
-            self.doi = soup.find_all("link", title='doi')[0]["href"].lstrip("http://dx.doi.org/")
-        except IndexError:
-            pass
+        if not self.crossref_data and self.arxiv_id:
+            soup = BeautifulSoup(self.arxiv_data, "html5lib")
+            self.title = re.sub(" +", " ", re.sub("\n", "", soup.entry.title.string.strip()))
+            self.authors = [a.string for a in soup.find_all("name")]
+            self.year = soup.published.string.split("-")[0]
+            self.abstract = soup.find("summary").string.strip()
+            try:
+                self.doi = soup.find_all("link", title='doi')[0]["href"].lstrip("http://dx.doi.org/")
+                print("Getting Crossref data for published arXiv preprint...")
+                self.get_crossref_data()
+                self.extract_crossref_reference_data()
+            except IndexError:
+                pass
         
     def extract_crossref_reference_data(self, format=True):
         """Extract a reference's metadata from a Crossref api response."""
@@ -230,14 +235,14 @@ class Reference:
                     self.formatted_reference = f"{self.authors}, \\textit{{{self.title}}}, {self.short_journal} \\textbf{{{self.volume}}}, {self.issue} ({self.year}), \doi{{{self.doi}}}."
                 else:
                     self.formatted_reference = f"{self.authors}, \\textit{{{self.title}}}, {self.short_journal} \\textbf{{{self.volume}}}, {(self.year)}, \doi{{{self.doi}}}"
-            elif self.item_type == "book":
-                self.formatted_reference = f"{self.authors}, \\textit{{{self.title}}}, {self.publisher}, {self.publisher_location} ({self.year}), \doi{{{self.doi}}}"
+            elif self.item_type == "book" or self.item_type == "monograph":
+                self.formatted_reference = f"{self.authors}, \\textit{{{self.title}}}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
             elif self.item_type == "book-chapter":
-                self.formatted_reference = f"{self.authors}, \\textit{{{self.title}}}, in {self.journal}, {self.publisher}, {self.publisher_location} ({self.year}), \doi{{{self.doi}}}"
-        elif "arxiv" in self.bibitem_data:
-            self.formatted_reference = f"[AUTHORS], \\textit{{[TITLE]}}, \href{{https://arxiv.org/abs/####.#####}}{{arXiv:####.#####}}. % Has this been published somewhere?"
+                self.formatted_reference = f"{self.authors}, \\textit{{{self.title}}}, in {self.journal}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
+        elif self.arxiv_data:
+            self.formatted_reference = f"{self.authors}, \\textit{{{self.title}}}, \href{{https://arxiv.org/abs/{self.arxiv_id}}}{{arXiv:{self.arxiv_id}}}. % Has this been published somewhere?"
         else:
-            self.formatted_reference = f"[AUTHORS], \\textit{{[TITLE]}}, [JOURNAL] \\textbf{{[]VOLUME]}}, [PAGE/ARTICLE NUMBER] ([YEAR]), \doi{{[DOI]}}."
+            self.formatted_reference = f"[AUTHORS], \\textit{{[TITLE]}}, [JOURNAL] \\textbf{{[VOLUME]}}, [PAGE/ARTICLE NUMBER] ([YEAR]), \doi{{[DOI]}}."
                 
                 
 class ReferenceUtils(metaclass=ABCMeta):
