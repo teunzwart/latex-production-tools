@@ -149,20 +149,21 @@ class Reference:
             except requests.exceptions.HTTPError as e:
                 return f"failed ({e})"        
         
-    def extract_arxiv_reference_data(self):
+    def extract_arxiv_reference_data(self, get_doi_if_available=True):
         if not self.crossref_data and self.arxiv_id:
             soup = BeautifulSoup(self.arxiv_data, "html5lib")
             self.title = re.sub(" +", " ", re.sub("\n", "", soup.entry.title.string.strip()))
             self.authors = [a.string for a in soup.find_all("name")]
             self.year = soup.published.string.split("-")[0]
             self.abstract = soup.find("summary").string.strip()
-            try:
-                self.doi = soup.find_all("link", title='doi')[0]["href"].lstrip("http://dx.doi.org/")
-                print("Getting Crossref data for published arXiv preprint...")
-                self.get_crossref_data()
-                self.extract_crossref_reference_data()
-            except IndexError:
-                pass
+            if get_doi_if_available:
+                try:
+                    self.doi = soup.find_all("link", title='doi')[0]["href"].lstrip("http://dx.doi.org/")
+                    print("Getting Crossref data for published arXiv preprint...")
+                    self.get_crossref_data()
+                    self.extract_crossref_reference_data()
+                except IndexError:
+                    pass
         
     def extract_crossref_reference_data(self, format=True):
         """Extract a reference's metadata from a Crossref api response."""
