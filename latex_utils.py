@@ -1,8 +1,9 @@
 """ Utilities to work with LaTeX files. """
 
-import argparse
 import re
+import requests
 import unicodedata
+import sys
 
 
 def read_tex_file(tex_file, encoding="utf-8"):
@@ -27,17 +28,12 @@ def remove_accented_characters(string):
     return unicodedata.normalize('NFD', string).encode('ascii', 'ignore').decode('utf-8')
 
 
-def cli_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('tex_file')
-    parser.add_argument("--debug", action="store_true")
-    args = parser.parse_args()
-    return args
-
-
-if __name__ == "__main__":
-    args = cli_parser()
-    log_file = read_tex_file(args.tex_file, encoding="latin-1")
-    relevant_warnings = get_relevant_warnings(log_file)
-    for warning in relevant_warnings:
-        print(warning)
+def open_webpage(address):
+    """Return the request server response for a webpage."""
+    try:
+        server_response = requests.get(address, timeout=10)
+        server_response.raise_for_status()
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
+        sys.exit(e)
+    else:
+        return server_response
