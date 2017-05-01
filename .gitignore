@@ -1,3 +1,4 @@
 *.tex
 *.DS_Store
 /__pycache__
+paths.py
