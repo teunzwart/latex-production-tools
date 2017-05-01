@@ -6,15 +6,15 @@ import unicodedata
 import sys
 
 
-def read_tex_file(tex_file, encoding="utf-8"):
+def read_latex_file(latex_file, encoding="utf-8"):
     with open(tex_file, 'r', encoding=encoding) as data:
-        tex_source = data.read()
-    return tex_source
+        latex_source = data.read()
+    return latex_source
 
 
-def write_tex_file(tex_file, tex_source):
-    with open(tex_file, 'w') as open_file:
-        open_file.write(tex_source)
+def write_latex_file(latex_file, latex_source):
+    with open(latex_file, 'w') as open_file:
+        open_file.write(latex_source)
 
 
 def get_relevant_warnings(log_file):
@@ -25,15 +25,19 @@ def get_relevant_warnings(log_file):
 
 
 def remove_accented_characters(string):
+    """Change accented characters to their ASCII equivalents."""
     return unicodedata.normalize('NFD', string).encode('ascii', 'ignore').decode('utf-8')
 
 
-def open_webpage(address):
+def open_webpage(address, exit_on_error=True):
     """Return the request server response for a webpage."""
     try:
         server_response = requests.get(address, timeout=10)
         server_response.raise_for_status()
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
-        sys.exit(e)
+        if exit_on_error:
+            sys.exit(e)
+        else:
+            return f"failed ({e})"
     else:
         return server_response
