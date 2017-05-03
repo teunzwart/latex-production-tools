@@ -7,7 +7,7 @@ import sys
 
 
 def read_latex_file(latex_file, encoding="utf-8"):
-    with open(tex_file, 'r', encoding=encoding) as data:
+    with open(latex_file, 'r', encoding=encoding) as data:
         latex_source = data.read()
     return latex_source
 
