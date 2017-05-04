@@ -122,7 +122,6 @@ class TestReferenceUtils(unittest.TestCase):
                                                     "\\\\ DOI: 10.1016/0550-3213(90)90333-9"), None)
 
     def test_author_concatenation(self):
-        self.maxDiff = None
         """Test that a list of authors is correctly concatenated."""
         self.assertEqual(concatenate_authors(["Jean-Sébastien Caux"]), "Jean-Sébastien Caux")
         self.assertEqual(concatenate_authors(["Jean-Sébastien Caux", "Andrew S. Campbell"]), "Jean-Sébastien Caux and Andrew S. Campbell")
@@ -131,6 +130,11 @@ class TestReferenceUtils(unittest.TestCase):
         self.assertEqual(concatenate_authors([]), None)
         self.assertEqual(concatenate_authors(None), None)
         self.assertEqual(concatenate_authors("Hello"), None)
+        # Test that references with a lot of authors are truncated.
+        reference = Reference("\doi{10.1016/j.physletb.2012.08.020}")
+        reference.main()
+        print("Is list", isinstance(reference.abbreviated_authors, list))
+        self.assertEqual(concatenate_authors(reference.abbreviated_authors), "G. Aad et al.")
 
     def test_arxiv_version_removal(self):
         """Test that the version of an arXiv id is correctly removed."""

@@ -91,10 +91,12 @@ def concatenate_authors(list_of_authors):
         return None
     elif len(list_of_authors) == 1:
         return list_of_authors[0]
-    else:
+    elif len(list_of_authors) < 10:
         author_string = ", ".join(list_of_authors[:-1])
         return f"{author_string} and {list_of_authors[-1]}"
-
+    # Only cite the first author (especially important for particle physics publications with 100+ authors).
+    else:
+        return f"{list_of_authors[0]} et al."
 
 def remove_arxiv_id_version(arxiv_id):
     """Remove the version from an arXiv id."""
