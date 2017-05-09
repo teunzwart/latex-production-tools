@@ -251,7 +251,7 @@ class Reference:
             elif self.item_type in ["book", "monograph"]:
                 reference = f"{authors_and_title}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
             elif self.item_type == "book-chapter":
-                reference = f"{authors_and_titl}, in {self.journal}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
+                reference = f"{authors_and_title}, in {self.journal}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
         elif self.arxiv_data:
             reference = f"{authors_and_title}, \href{{https://arxiv.org/abs/{self.arxiv_id}}}{{arXiv:{self.arxiv_id}}}. % Has this been published somewhere?"
         else:
