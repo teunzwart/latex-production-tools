@@ -126,40 +126,38 @@ class LatexPreparer:
         else:
             # FIXME: seems to be a problem with decompression which does happen in a browser but not in Python.
             sys.exit("Can not currently handle single file submissions. Aborting...")
+            print("Can not currently handle automatic downloading of submissions consisting of a single file.")
+            print("You should download the source file from arXiv and rename it to include a .tex file extension.")
+            while True:
+                print("After doing this, type 'yes' to proceed: ", endl="")
+                user_input = input()
+                if user_input == "yes":
+                    break
 
-    def extract_paper_data(self):
-        os.chdir(self.production_folder)
-        for file_name in os.listdir(self.production_folder):
+    def prepare_paper_data(self):
+        """Prepare and extract data from the LaTeX source file of a submission."""
+        for file_name in os.listdir(self.publication_production_folder):
             if os.path.splitext(file_name)[-1] == ".bbl":
-                references = read_tex_file(os.path.join(self.production_folder, file_name))
-                self.references = re.search(r"(\\bibitem.*)(?=\\end{thebibliography})", references, re.DOTALL).group(1)
-                print(os.path.splitext(file_name)[-1])
-            # TODO: Can't handle multiple tex files in the submission!
-            elif os.path.splitext(file_name)[-1] == ".tex" and file_name not in  ["SciPost_Phys_Skeleton.tex", self.publication_tex]:
-                self.original_tex_source = read_tex_file(os.path.join(self.production_folder, file_name))
+                references = read_latex_file(os.path.join(self.publication_production_folder, file_name))
+                self.references = "\n\n".join(extract_bibtex_items(references))
+            # TODO: Handle multiple tex files in a submission.
+            elif os.path.splitext(file_name)[-1] == ".tex" and file_name not in ["SciPost_Phys_Skeleton.tex", self.publication_tex_filename]:
+                self.original_tex_source = read_latex_file(os.path.join(self.publication_production_folder, file_name))
         self.paper_content = re.search(r"(\\section{.*?}.*)(?=\\bibliography|\\begin{thebibliography})", self.original_tex_source, re.DOTALL).group(0)
         all_packages = re.findall(r"(?<=\n)\\usepackage.*", self.original_tex_source)
-        print(all_packages)
 
         if not self.references:
             self.references = re.search(r"(\\bibitem.*)(?=\\end{thebibliography})", self.original_tex_source, re.DOTALL).group(1)
         self.packages = []
         for i, package in enumerate(all_packages):
             package_name = re.search(r"{(.*?)}", package).group(1)
-            print(package_name)
             if package_name in ["amssymb", "a4wide"]:
-                print("REMOVED")
                 self.packages.append("% REMOVED IN PROD" + package)
             elif package_name in ["doi", "amsmath", "graphicx", "hyperref"]:
-                print("ALREADY")
                 pass
             else:
                 self.packages.append(package)
-                print("ADDED")
 
-        
-
-        
         self.packages = "".join([m + "\n" for m in self.packages])
 
         self.new_commands = "".join([m + "\n" for m in re.findall(r"(?<=\n)\\newcommand.*", self.original_tex_source)])
