@@ -1,5 +1,4 @@
 import argparse
-import calendar
 import datetime
 import math
 import os
@@ -7,16 +6,20 @@ import shutil
 import sys
 import tarfile
 import subprocess
-import tempfile
 import re
 
 import requests
 from bs4 import BeautifulSoup
 
-from latex_utils import remove_accented_characters, read_tex_file, write_tex_file, get_relevant_warnings, open_webpage
-from reference_utils import Reference
-from reference_formatter import ReferenceFormatter
+from latex_utils import remove_accented_characters, read_latex_file, write_latex_file, get_relevant_warnings, open_webpage
+from reference_utils import Reference, concatenate_authors, extract_bibtex_items, remove_arxiv_id_version
+from reference_formatter import format_references
 from paths import LATEX_SKELETON_PATH, PRODUCTION_PATH
+
+
+def extract_submission_content(latex_source):
+    """Extract the submission content from a LaTeX source."""
+    pass
 
 
 class LatexPreparer:
@@ -28,12 +31,14 @@ class LatexPreparer:
         self.arxiv_id = None
         self.submission_date = None
         self.title = None
-        self.authors = None
+        self.full_authors = None
+        self.abbreviated_authors = None
         self.first_author_last_name = None
         self.abstract = None
         self.tex_source_zip = None
         self.original_tex_text = None
         self.publication_production_folder = None
+        self.publication_tex_filename = None
         self.year = now.year
         self.references = None
         self.content = None
@@ -43,11 +48,10 @@ class LatexPreparer:
     def main(self):
         self.retrieve_scipost_submission_data()
         self.retrieve_arxiv_metadata()
-        print(self.authors)
         self.prepare_production_folder()
         self.download_arxiv_source()
-        sys.exit()
-        latex_preparer.extract_paper_data()
+        # sys.exit()
+        latex_preparer.prepare_paper_data()
         latex_preparer.edit_tex_file()
         latex_preparer.run_pdflatex()
 
@@ -73,13 +77,12 @@ class LatexPreparer:
         self.submission_date = "-".join(submission_date.split("-")[::-1])
 
     def retrieve_arxiv_metadata(self):
-        reference = Reference(f"http://arxiv.org/abs/{self.arxiv_id}", extract_bibitem_identifier=False)
-        reference.extract_arxiv_id()
-        reference.get_arxiv_data()
-        reference.extract_arxiv_reference_data(get_doi_if_available=False)
-        reference.arxiv_format_authors()
+        """Retrieve the arXiv data (title, authors, abstract) for a submission."""
+        reference = Reference(f"arXiv:{self.arxiv_id}")
+        reference.main()
         self.title = reference.title
-        self.authors = reference.raw_full_authors
+        self.full_authors = reference.full_authors
+        self.abbreviated_authors = reference.abbreviated_authors
         self.first_author_last_name = remove_accented_characters(reference.first_author_last_name.replace(" ", "_"))
         self.abstract = reference.abstract
 
@@ -104,35 +107,32 @@ class LatexPreparer:
     def download_arxiv_source(self):
         """Download the LaTeX source for a submission from arXiv."""
         print("Downloading LaTeX source from arXiv...")
-        tex_source_zip = open_webpage(f"https://arxiv.org/e-print/{self.arxiv_id}")
-        if tex_source_zip.headers["Content-Type"] == "application/x-eprint-tar":
-            # Save the tar file.
-            with open(os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tar.gz"), "wb") as zip_file:
-                for chunk in tex_source_zip:
-                    zip_file.write(chunk)
-            # Extract the tar file.
-            with tarfile.open(os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tar.gz")) as tar_file:
+        # Note that we use src/ID instead of e-print/ID, since then the source is always returned as a tarfile, even if it's a single file.
+        tex_source_zip = open_webpage(f"https://arxiv.org/src/{self.arxiv_id}")
+        # Save the tar file.
+        with open(os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tar.gz"), "wb") as zip_file:
+            for chunk in tex_source_zip:
+                zip_file.write(chunk)
+        # Extract the tar file.
+        with tarfile.open(os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tar.gz")) as tar_file:
+            # Single file submission.
+            if len(tar_file.getmembers()) == 1:
+                tar_file.extractall(path=self.publication_production_folder)
+                arxiv_id_without_version = remove_arxiv_id_version(self.arxiv_id)
+                os.rename(os.path.join(self.publication_production_folder, arxiv_id_without_version), os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tex"))
+            else:
                 tar_file.extractall(path=os.path.join(self.publication_production_folder, self.arxiv_id))
-            # Copy the files and directories one level up.
-            for file_name in os.listdir(os.path.join(self.publication_production_folder, self.arxiv_id)):
-                # Exclude any class files the authors may have bundled.
-                if not os.path.splitext(file_name)[-1] in [".bst", ".cls"]:
-                    # Copy directories and their contents.
-                    if os.path.isdir(os.path.join(self.publication_production_folder, self.arxiv_id, file_name)):
-                        shutil.copytree(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), os.path.join(self.publication_production_folder, file_name))
-                    # Copy individual files.
-                    else:
-                        shutil.copy2(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), self.publication_production_folder)
-        else:
-            # FIXME: seems to be a problem with decompression which does happen in a browser but not in Python.
-            sys.exit("Can not currently handle single file submissions. Aborting...")
-            print("Can not currently handle automatic downloading of submissions consisting of a single file.")
-            print("You should download the source file from arXiv and rename it to include a .tex file extension.")
-            while True:
-                print("After doing this, type 'yes' to proceed: ", endl="")
-                user_input = input()
-                if user_input == "yes":
-                    break
+                # Copy the files and directories one level up.
+                for file_name in os.listdir(os.path.join(self.publication_production_folder, self.arxiv_id)):
+                    # Exclude any class files the authors may have bundled.
+                    if not os.path.splitext(file_name)[-1] in [".bst", ".cls"]:
+                        # Copy directories and their contents.
+                        if os.path.isdir(os.path.join(self.publication_production_folder, self.arxiv_id, file_name)):
+                            shutil.copytree(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), os.path.join(self.publication_production_folder, file_name))
+                            # Copy individual files.
+                        else:
+                            shutil.copy2(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), self.publication_production_folder)
+
 
     def prepare_paper_data(self):
         """Prepare and extract data from the LaTeX source file of a submission."""
@@ -166,45 +166,64 @@ class LatexPreparer:
         print(self.packages)
 
     def edit_tex_file(self):
-        os.chdir(self.production_folder)
-        self.production_tex_source = read_tex_file(os.path.join(self.production_folder, self.publication_tex))
-        self.tex_source = self.production_tex_source
+        """Edit a tex file."""
+        self.production_tex_source = read_latex_file(os.path.join(self.publication_production_folder, self.publication_tex_filename))
 
-        self.tex_source = self.tex_source.replace("%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 1", f"%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 1")
-        self.tex_source = self.tex_source.replace("%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 2", f"%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 2")
+        old_citation_1 = "%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 1"
+        new_citation_1 = f"%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 1"
+        self.production_tex_source = self.production_tex_source.replace(old_citation_1, new_citation_1)
 
-        self.tex_source = self.tex_source.replace("%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n% ADDED IN PRODUCTION", f"%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n{self.packages}\n\n% ADDED IN PRODUCTION")
+        old_citation_2 = "%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 2"
+        new_citation_2 = f"%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 2"
+        self.production_tex_source = self.production_tex_source.replace(old_citation_2, new_citation_2)
 
-        self.tex_source = self.tex_source.replace("%%%%%%%%%% TODO: COMMANDS\n\n%%%%%%%%%% END TODO: COMMANDS", f"%%%%%%%%%% TODO: COMMANDS\n\n{self.new_commands}\n%%%%%%%%%% END TODO: COMMANDS")
+        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n% ADDED IN PRODUCTION", f"%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n{self.packages}\n\n% ADDED IN PRODUCTION")
 
-        self.tex_source = self.tex_source.replace("% multiline titles: end with a \\\\ to regularize line spacing", f"% multiline titles: end with a \\\\ to regularize line spacing\n{self.title}\\\\")
-                 
-        self.tex_source = self.tex_source.replace("A. Bee\\textsuperscript{1,2},\nC. Dee \\textsuperscript{1} and\nE. Eff \\textsuperscript{3*}", self.authors)
-                 
-        self.tex_source = self.tex_source.replace("%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n%%%%%%%%%% END TODO: ABSTRACT", f"%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n{self.abstract}\n%%%%%%%%%% END TODO: ABSTRACT")
-
-        self.tex_source = self.tex_source.replace("{\\small Copyright A. Bee {\\it et al}.", "{\\small Copyright DA COPY SQUAD.")
-                 
-        self.tex_source = self.tex_source.replace("\\small Received ??-??-20??", f"\\small Received {self.submission_date}")
-
-        self.tex_source = self.tex_source.replace("\\href{https://doi.org/10.21468/SciPostPhys.?.?.???}{doi:10.21468/SciPostPhys.?.?.???}", f"\\href{{https://doi.org/10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}{{doi:10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}")
-
-        self.tex_source = self.tex_source.replace("%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n%\\linenumbers", "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n\\linenumbers")
-
-        self.tex_source = self.tex_source.replace("%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n\n\n%%%%%%%%% END TODO: CONTENTS", f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.paper_content}\n\n%%%%%%%%% END TODO: CONTENTS")
-
-        if self.references:
-            self.tex_source = self.tex_source.replace("TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here", f"TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here\n\n{self.references}")
-        reference_formatter = ReferenceFormatter(self.tex_source)
-        # self.tex_source = reference_formatter.main()
+        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%%% TODO: COMMANDS\n\n%%%%%%%%%% END TODO: COMMANDS", f"%%%%%%%%%% TODO: COMMANDS\n\n{self.new_commands}\n%%%%%%%%%% END TODO: COMMANDS")
 
         
-        write_tex_file(self.publication_tex, self.tex_source)
+        old_title = "% multiline titles: end with a \\\\ to regularize line spacing"
+        new_title = f"% multiline titles: end with a \\\\ to regularize line spacing\n{self.title}\\\\"
+        self.production_tex_source = self.production_tex_source.replace(old_title, new_title)
+
+        old_authors = "A. Bee\\textsuperscript{1,2},\nC. Dee \\textsuperscript{1} and\nE. Eff \\textsuperscript{3*}"
+        new_authors = concatenate_authors(self.full_authors)
+        self.production_tex_source = self.production_tex_source.replace(old_authors, new_authors)
+        
+        old_abstract = "%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n%%%%%%%%%% END TODO: ABSTRACT"
+        new_abstract = f"%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n{self.abstract}\n%%%%%%%%%% END TODO: ABSTRACT"
+        self.production_tex_source = self.production_tex_source.replace(old_abstract, new_abstract)
+
+        old_copyright = "{\\small Copyright A. Bee {\\it et al}."
+        new_copyright = "{\\small Copyright DA COPY SQUAD."
+        self.production_tex_source = self.production_tex_source.replace(old_copyright, new_copyright)
+
+        old_received_date = "\\small Received ??-??-20??"
+        new_received_date = f"\\small Received {self.submission_date}"
+        self.production_tex_source = self.production_tex_source.replace(old_received_date, new_received_date)
+
+        old_doi = "\\href{https://doi.org/10.21468/SciPostPhys.?.?.???}{doi:10.21468/SciPostPhys.?.?.???}"
+        new_doi = f"\\href{{https://doi.org/10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}{{doi:10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}"
+        self.production_tex_source = self.production_tex_source.replace(old_doi, new_doi)
+
+        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n%\\linenumbers", "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n\\linenumbers")
+
+        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n\n\n%%%%%%%%% END TODO: CONTENTS", f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.paper_content}\n\n%%%%%%%%% END TODO: CONTENTS")
+
+        if self.references:
+            self.production_tex_source = self.production_tex_source.replace("TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here", f"TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here\n\n{self.references}")
+
+        print("Processing references...")
+        self.production_tex_source = format_references(self.production_tex_source)
+
+        write_latex_file(os.path.join(self.publication_production_folder, self.publication_tex_filename), self.production_tex_source)
 
     def run_pdflatex(self):
-        subprocess.run(["latexmk", "-pdf", f"{self.publication_tex}"])
-        print((re.sub(r".tex$", ".log", self.publication_tex)))
-        print(get_relevant_warnings(read_tex_file(re.sub(r".tex$", ".log", self.publication_tex), encoding='latin-1')))
+        os.chdir(self.publication_production_folder)
+        subprocess.check_output(["latexmk", "-pdf", os.path.join(self.publication_production_folder, self.publication_tex_filename)])
+        print("The following warning were generated:")
+        for warning in get_relevant_warnings(read_latex_file(re.sub(r".tex$", ".log", self.publication_tex_filename), encoding='latin-1')):
+            print(warning)
 
 
 if __name__ == "__main__":
