@@ -15,7 +15,7 @@ from reference_utils import (abbreviate_authors,
 
 
 class TestReferenceUtils(unittest.TestCase):
-    """Test single funcions from reference_utils.py"""
+    """Test single functions from reference_utils.py"""
     def test_author_abbreviation(self):
         """Test that author names are correctly abbreviated and that the operation is idempotent."""
         self.assertEqual(abbreviate_authors(["Jean-Sébastien Caux"]), ["J.-S. Caux"])
@@ -26,6 +26,7 @@ class TestReferenceUtils(unittest.TestCase):
         self.assertEqual(abbreviate_authors(["Cristiane Morais Smith"]), ["C. Morais Smith"])  # Test multiple last names.
         self.assertEqual(abbreviate_authors(["Al.B. Zamolodchikov"]), ["Al. B. Zamolodchikov"])
         self.assertEqual(abbreviate_authors(["Jasper van Wezel"]), ["J. van Wezel"])  # Test Dutch last names.
+        self.assertEqual(abbreviate_authors(["A V Slavnov"]), ["A. V. Slavnov"])
 
     def test_get_first_author_last_name(self):
         """Test that the last name of the first author is correctly returned."""
@@ -133,7 +134,6 @@ class TestReferenceUtils(unittest.TestCase):
         # Test that references with a lot of authors are truncated.
         reference = Reference("\doi{10.1016/j.physletb.2012.08.020}")
         reference.main()
-        print("Is list", isinstance(reference.abbreviated_authors, list))
         self.assertEqual(concatenate_authors(reference.abbreviated_authors), "G. Aad et al.")
 
     def test_arxiv_version_removal(self):

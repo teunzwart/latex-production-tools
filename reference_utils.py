@@ -21,7 +21,14 @@ def abbreviate_authors(list_of_authors):
             first_name = " ".join(g + "." for g in first_name if g != "")
         else:
             first_name = first_name[:1] + "."
-        abbreviated_authors.append(f"{first_name} {middle_and_last_names}")
+        full_name = f"{first_name} {middle_and_last_names}"
+        # Make sure any initials after the first one also have a dot appended if not present.
+        name_with_all_dots = []
+        for name in full_name.split():
+            if len(name) == 1:
+                name = name + "."
+            name_with_all_dots.append(name)
+        abbreviated_authors.append(" ".join(name_with_all_dots))
     return abbreviated_authors
 
 
