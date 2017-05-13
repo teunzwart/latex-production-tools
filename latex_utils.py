@@ -6,9 +6,13 @@ import unicodedata
 import sys
 
 
-def read_latex_file(latex_file, encoding="utf-8"):
-    with open(latex_file, 'r', encoding=encoding) as data:
-        latex_source = data.read()
+def read_latex_file(latex_file):
+    try:
+        with open(latex_file, 'r', encoding="utf-8") as data:
+            latex_source = data.read()
+    except UnicodeDecodeError:
+        with open(latex_file, 'r', encoding="latin-1") as data:
+            latex_source = data.read()
     return latex_source
 
 
