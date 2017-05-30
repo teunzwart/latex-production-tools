@@ -24,6 +24,8 @@ class TestLatexPreparer(unittest.TestCase):
         latex_preparer.retrieve_scipost_submission_data()
         latex_preparer.retrieve_arxiv_metadata()
         self.assertEqual(latex_preparer.title, "A note on generalized hydrodynamics: inhomogeneous fields and other concepts")
+        self.assertEqual(latex_preparer.full_authors, ['Benjamin Doyon', 'Takato Yoshimura'])
+        self.assertEqual(latex_preparer.abbreviated_authors, ['B. Doyon', 'T. Yoshimura'])
         self.assertEqual(latex_preparer.first_author_last_name, "Doyon")
         # Remove the newlines for the comparison (we keep them in the program to make the final LaTeX file look nicer).
         self.assertEqual(latex_preparer.abstract.replace("\n", " "),
@@ -40,15 +42,22 @@ class TestLatexPreparer(unittest.TestCase):
                           "possible viscosity terms."))
 
     def test_production_folder_preparation(self):
-        """Test for the correct preparation of the submission production folder."""
+        """
+        Test for the correct preparation of the submission production folder.
+
+        This submission's source consists of a single tex file. This also tests that these are handled properly.
+        """
         latex_preparer = LatexPreparer("https://scipost.org/submissions/1611.08225v2/")
         latex_preparer.retrieve_scipost_submission_data()
         latex_preparer.retrieve_arxiv_metadata()
         with tempfile.TemporaryDirectory() as temp_dir:
             latex_preparer.prepare_production_folder(production_path=temp_dir)
             self.assertEqual(latex_preparer.publication_tex_filename, "SciPost_Phys_1611_08225v2_Doyon.tex")
+            latex_preparer.download_arxiv_source()
             self.assertEqual(os.listdir(latex_preparer.publication_production_folder),
-                             ['by.eps',
+                             ["1611.08225v2.tar.gz",
+                              "1611.08225v2.tex",
+                              'by.eps',
                               'logo_scipost_with_bgd.pdf',
                               'SciPost.cls',
                               'SciPost_bibstyle.bst',
@@ -58,15 +67,6 @@ class TestLatexPreparer(unittest.TestCase):
             with self.assertRaises(SystemExit) as error:
                 latex_preparer.prepare_production_folder(production_path=temp_dir)
             self.assertEqual(error.exception.code, "Folder already exists! Aborting...")
-
-    def test_arxiv_latex_source_retrieval_single_file_failure(self):
-        """Test that the program fails if a submission only consists of a single file."""
-        latex_preparer = LatexPreparer("https://scipost.org/submissions/1611.08225v2/")
-        latex_preparer.retrieve_scipost_submission_data()
-        latex_preparer.retrieve_arxiv_metadata()
-        with self.assertRaises(SystemExit) as error:
-            latex_preparer.download_arxiv_source()
-        self.assertEqual(error.exception.code, "Can not currently handle single file submissions. Aborting...")
 
     def test_arxiv_latex_source_retrieval(self):
         """Test that source retrieval and extraction went correctly."""
