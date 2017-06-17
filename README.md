@@ -3,6 +3,7 @@
 Tools to work with LaTeX files. Tools include automatic publication preparation, reference formatting and reference extraction.
 
 At least Python 3.6 is required for [format strings](https://www.python.org/dev/peps/pep-0498/) and to easily handle unicode strings.
+External dependencies are `bs4`, `requests` and `html5lib`.
 
 ## Setup
 1. Clone the repository
@@ -26,4 +27,5 @@ Any references that could not be processed are shown at the end of the program t
 ```
 python reference_scraper.py latex_file
 ```
+
 
