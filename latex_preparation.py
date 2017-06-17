@@ -45,6 +45,7 @@ def extract_commands(latex_source):
     commands = []
     commands += re.findall(r"(?<=\n)\\newcommand.*", latex_source)
     commands += re.findall(r"(?<=\n)\\def.*", latex_source)
+    commands += re.findall(r"(?<=\n)\\DeclareMathOperator.*", latex_source)
     return "\n".join(commands)
 
 
@@ -78,7 +79,7 @@ class LatexPreparer:
         self.download_arxiv_source()
         self.prepare_paper_data()
         self.edit_tex_file()
-        # self.run_pdflatex()
+        self.run_pdflatex()
 
     def retrieve_scipost_submission_data(self):
         """Retrieve a submission's webpage and extract metadata."""
@@ -161,8 +162,11 @@ class LatexPreparer:
     def prepare_paper_data(self):
         """Prepare and extract data from the LaTeX source file of a submission."""
         for file_name in os.listdir(self.publication_production_folder):
+            print(file_name)
             if os.path.splitext(file_name)[-1] == ".bbl":
+                print("Found bbl")
                 references = read_latex_file(os.path.join(self.publication_production_folder, file_name))
+                print(references)
                 self.references = "\n\n".join(extract_bibtex_items(references))
             # TODO: Handle multiple tex files in a submission.
             elif os.path.splitext(file_name)[-1] == ".tex" and file_name not in ["SciPost_Phys_Skeleton.tex", self.publication_tex_filename]:
