@@ -68,7 +68,8 @@ def extract_doi(bibtex_item):
         (10\.\d{4,}\/[^} \n]*)
         """, re.VERBOSE)
         doi = doi_regex.search(bibtex_item)
-        return doi.group(1).rstrip()
+        doi =  doi.group(1).rstrip()
+        return doi.rstrip(";%%")
     except AttributeError:
         return None
 
