@@ -8,7 +8,6 @@ import tarfile
 import subprocess
 import re
 
-import requests
 from bs4 import BeautifulSoup
 
 from latex_utils import remove_accented_characters, read_latex_file, write_latex_file, get_relevant_warnings, open_webpage
@@ -19,9 +18,40 @@ from paths import LATEX_SKELETON_PATH, PRODUCTION_PATH
 
 def extract_submission_content(latex_source):
     """Extract the submission content from a LaTeX source."""
-    pass
+    content = re.search(r"(\\section{.*?}.*)(?=\\bibliography|\\begin{thebibliography})", latex_source, re.DOTALL).group(0)
+    return content
 
 
+def extract_packages(latex_source):
+    """Extract packages and package options from a LaTeX source."""
+    production_packages = []
+    raw_packages = []
+    document_class_packages = re.search(r"(?!<%)\\documentclass\[(.*?)]{", latex_source, re.DOTALL).group(1).split(",")
+    print(document_class_packages)
+    print("HELO")
+    if document_class_packages:
+        for option in document_class_packages:
+            print(option)
+    usepackages = re.findall(r"(?<!%)\\usepackage.*?{.*?}", latex_source)
+    for package in usepackages:
+        package_name = re.search(r"{(.*?)}", package).group(1).split(",")
+        if package_name in ["amssymb", "a4wide"]:
+            production_packages.append("% REMOVED IN PROD" + package)
+        elif package_name in ["doi", "amsmath", "graphicx", "hyperref"]:
+            pass
+        else:
+            production_packages.append(package)
+    production_packages.append("\\usepackage{amsfonts}")
+    production_packages = "".join([m + "\n" for m in production_packages])
+    return production_packages
+
+
+def extract_commands(latex_source):
+    commands = []
+    commands += re.findall(r"(?<=\n)\\newcommand.*", self.original_tex_source)
+    commands += re.findall(r"(?<=\n)\\def.*", self.original_tex_source)
+    return "\n".join(commands)
+        
 class LatexPreparer:
     def __init__(self, submission_address):
         self.submission_address = submission_address
@@ -50,7 +80,6 @@ class LatexPreparer:
         self.retrieve_arxiv_metadata()
         self.prepare_production_folder()
         self.download_arxiv_source()
-        # sys.exit()
         latex_preparer.prepare_paper_data()
         latex_preparer.edit_tex_file()
         latex_preparer.run_pdflatex()
@@ -133,7 +162,6 @@ class LatexPreparer:
                         else:
                             shutil.copy2(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), self.publication_production_folder)
 
-
     def prepare_paper_data(self):
         """Prepare and extract data from the LaTeX source file of a submission."""
         for file_name in os.listdir(self.publication_production_folder):
@@ -143,27 +171,14 @@ class LatexPreparer:
             # TODO: Handle multiple tex files in a submission.
             elif os.path.splitext(file_name)[-1] == ".tex" and file_name not in ["SciPost_Phys_Skeleton.tex", self.publication_tex_filename]:
                 self.original_tex_source = read_latex_file(os.path.join(self.publication_production_folder, file_name))
-        self.paper_content = re.search(r"(\\section{.*?}.*)(?=\\bibliography|\\begin{thebibliography})", self.original_tex_source, re.DOTALL).group(0)
-        all_packages = re.findall(r"(?<=\n)\\usepackage.*", self.original_tex_source)
+        
+        self.content = extract_submission_content(self.original_tex_source)
+        self.packages = extract_packages(self.original_tex_source)
+        self.commands = extract_commands(self.original_tex_source)
 
         if not self.references:
-            self.references = re.search(r"(\\bibitem.*)(?=\\end{thebibliography})", self.original_tex_source, re.DOTALL).group(1)
-        self.packages = []
-        for i, package in enumerate(all_packages):
-            package_name = re.search(r"{(.*?)}", package).group(1)
-            if package_name in ["amssymb", "a4wide"]:
-                self.packages.append("% REMOVED IN PROD" + package)
-            elif package_name in ["doi", "amsmath", "graphicx", "hyperref"]:
-                pass
-            else:
-                self.packages.append(package)
+            self.references = "\n\n".join(extract_bibtex_items(self.original_tex_source))
 
-        self.packages = "".join([m + "\n" for m in self.packages])
-
-        self.new_commands = "".join([m + "\n" for m in re.findall(r"(?<=\n)\\newcommand.*", self.original_tex_source)])
-        self.new_commands += "".join([m + "\n" for m in re.findall(r"(?<=\n)\\def.*", self.original_tex_source)])
-
-        print(self.packages)
 
     def edit_tex_file(self):
         """Edit a tex file."""
@@ -177,9 +192,13 @@ class LatexPreparer:
         new_citation_2 = f"%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 2"
         self.production_tex_source = self.production_tex_source.replace(old_citation_2, new_citation_2)
 
-        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n% ADDED IN PRODUCTION", f"%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n{self.packages}\n\n% ADDED IN PRODUCTION")
+        old_packages = "%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n% ADDED IN PRODUCTION"
+        new_packages = f"%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n{self.packages}\n\n% ADDED IN PRODUCTION"
+        self.production_tex_source = self.production_tex_source.replace(old_packages, new_packages)
 
-        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%%% TODO: COMMANDS\n\n%%%%%%%%%% END TODO: COMMANDS", f"%%%%%%%%%% TODO: COMMANDS\n\n{self.new_commands}\n%%%%%%%%%% END TODO: COMMANDS")
+        old_commands = "%%%%%%%%%% TODO: COMMANDS\n\n%%%%%%%%%% END TODO: COMMANDS"
+        new_commands = f"%%%%%%%%%% TODO: COMMANDS\n\n{self.new_commands}\n%%%%%%%%%% END TODO: COMMANDS"
+        self.production_tex_source = self.production_tex_source.replace(old_commands, new_commands)
 
         
         old_title = "% multiline titles: end with a \\\\ to regularize line spacing"
@@ -206,12 +225,18 @@ class LatexPreparer:
         new_doi = f"\\href{{https://doi.org/10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}{{doi:10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}"
         self.production_tex_source = self.production_tex_source.replace(old_doi, new_doi)
 
-        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n%\\linenumbers", "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n\\linenumbers")
+        old_lineno = "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n%\\linenumbers"
+        new_lineno = "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n\\linenumbers"
+        self.production_tex_source = self.production_tex_source.replace(old_lineno, new_lineno)
 
-        self.production_tex_source = self.production_tex_source.replace("%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n\n\n%%%%%%%%% END TODO: CONTENTS", f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.paper_content}\n\n%%%%%%%%% END TODO: CONTENTS")
+        old_contents = "%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n\n\n%%%%%%%%% END TODO: CONTENTS"
+        new_contents = f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.paper_content}\n\n%%%%%%%%% END TODO: CONTENTS"
+        self.production_tex_source = self.production_tex_source.replace(old_contents, new_contents)
 
         if self.references:
-            self.production_tex_source = self.production_tex_source.replace("TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here", f"TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here\n\n{self.references}")
+            old_references = "TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here"
+            new_references = f"TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here\n\n{self.references}"
+            self.production_tex_source = self.production_tex_source.replace(old_references, new_references)
 
         print("Processing references...")
         self.production_tex_source = format_references(self.production_tex_source)
@@ -222,8 +247,9 @@ class LatexPreparer:
         os.chdir(self.publication_production_folder)
         subprocess.check_output(["latexmk", "-pdf", os.path.join(self.publication_production_folder, self.publication_tex_filename)])
         print("The following warning were generated:")
-        for warning in get_relevant_warnings(read_latex_file(re.sub(r".tex$", ".log", self.publication_tex_filename), encoding='latin-1')):
+        for warning in get_relevant_warnings(read_latex_file(re.sub(r".tex$", ".log", self.publication_tex_filename))):
             print(warning)
+        subprocess.run(["open", os.path.join(self.publication_production_folder, self.publication_tex_filename.replace(".tex", ".pdf"))])
 
 
 if __name__ == "__main__":
