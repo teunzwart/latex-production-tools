@@ -183,13 +183,9 @@ class LatexPreparer:
         """Edit a tex file."""
         self.production_tex_source = read_latex_file(os.path.join(self.publication_production_folder, self.publication_tex_filename))
 
-        old_citation_1 = "%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 1"
-        new_citation_1 = f"%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 1"
-        self.production_tex_source = self.production_tex_source.replace(old_citation_1, new_citation_1)
-
-        old_citation_2 = "%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 2"
-        new_citation_2 = f"%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 2"
-        self.production_tex_source = self.production_tex_source.replace(old_citation_2, new_citation_2)
+        old_citation = "%%%%%%%%%% TODO: PAPER CITATION\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION"
+        new_citation = f"%%%%%%%%%% TODO: PAPER CITATION\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION"
+        self.production_tex_source = self.production_tex_source.replace(old_citation, new_citation)
 
         old_packages = "%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n% ADDED IN PRODUCTION"
         new_packages = f"%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n{self.packages}\n\n% ADDED IN PRODUCTION"
@@ -203,7 +199,7 @@ class LatexPreparer:
         new_title = f"% multiline titles: end with a \\\\ to regularize line spacing\n{self.title}\\\\"
         self.production_tex_source = self.production_tex_source.replace(old_title, new_title)
 
-        old_authors = "A. Bee\\textsuperscript{1,2},\nC. Dee \\textsuperscript{1} and\nE. Eff \\textsuperscript{3*}"
+        old_authors = "A. Bee\\textsuperscript{1,2},\nC. Dee\\textsuperscript{1} and\nE. Eff\\textsuperscript{3$\star$}"
         new_authors = concatenate_authors(self.full_authors)
         self.production_tex_source = self.production_tex_source.replace(old_authors, new_authors)
 
@@ -219,13 +215,9 @@ class LatexPreparer:
         new_received_date = f"\\small Received {self.submission_date}"
         self.production_tex_source = self.production_tex_source.replace(old_received_date, new_received_date)
 
-        old_doi = "\\href{https://doi.org/10.21468/SciPostPhys.?.?.???}{doi:10.21468/SciPostPhys.?.?.???}"
-        new_doi = f"\\href{{https://doi.org/10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}{{doi:10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}"
+        old_doi = "\\doi{10.21468/SciPostPhys.?.?.???}"
+        new_doi = f"\\doi{{10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}"
         self.production_tex_source = self.production_tex_source.replace(old_doi, new_doi)
-
-        old_lineno = "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n%\\linenumbers"
-        new_lineno = "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n\\linenumbers"
-        self.production_tex_source = self.production_tex_source.replace(old_lineno, new_lineno)
 
         old_contents = "%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n\n\n%%%%%%%%% END TODO: CONTENTS"
         new_contents = f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.content}\n\n%%%%%%%%% END TODO: CONTENTS"
