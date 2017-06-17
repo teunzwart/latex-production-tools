@@ -76,6 +76,7 @@ class TestReferenceUtils(unittest.TestCase):
         self.assertEqual(extract_doi("\doi{10.21468/SciPostPhys.2.2.015}"), "10.21468/SciPostPhys.2.2.015")
         self.assertEqual(extract_doi("doi: 10.21468/SciPostPhys.2.2.015 and something else"), "10.21468/SciPostPhys.2.2.015")
         self.assertEqual(extract_doi("doi: 10.21468/SciPostPhys.2.2.015\nand something else"), "10.21468/SciPostPhys.2.2.015")
+        self.assertEqual(extract_doi("%%CITATION = doi:10.1007/JHEP09(2016)144;%%\n  %3 citations counted in INSPIRE as of 13 Apr 2017"), "10.1007/JHEP09(2016)144")
 
     def test_arxiv_extraction(self):
         """Test that arXiv id's are correctly extracted from a string."""
@@ -116,11 +117,11 @@ class TestReferenceUtils(unittest.TestCase):
                                                     "Scaling   three state Potts and Lee-Yang models''}, "
                                                     "\\newblock Nucl. Phys. B {\\bf 342}, 695--720 (1990)."
                                                     "\\\\ DOI: 10.1016/0550-3213(90)90333-9"), "tba1")
-        self.assertEqual(extract_bibitem_identifier("A.~Zamolodchikov, \\newblock "
+        self.assertIsNone(extract_bibitem_identifier("A.~Zamolodchikov, \\newblock "
                                                     "{``Thermodynamic Bethe ansatz in relativistic models. "
                                                     "Scaling   three state Potts and Lee-Yang models''}, "
                                                     "\\newblock Nucl. Phys. B {\\bf 342}, 695--720 (1990)."
-                                                    "\\\\ DOI: 10.1016/0550-3213(90)90333-9"), None)
+                                                    "\\\\ DOI: 10.1016/0550-3213(90)90333-9"))
 
     def test_author_concatenation(self):
         """Test that a list of authors is correctly concatenated."""
@@ -183,8 +184,8 @@ class TestReferenceClass(unittest.TestCase):
         reference.main()
         self.assertEqual(reference.crossref_data, None)
         self.assertEqual(reference.formatted_reference,
-                         "AUTHORS, \\textit{{TITLE}}, JOURNAL \\textbf{{VOLUME}}, "
-                         "PAGE/ARTICLE NUMBER (YEAR), \\doi{{DOI}}.")
+                         "AUTHORS, \\textit{TITLE}, JOURNAL \\textbf{VOLUME}, "
+                         "PAGE/ARTICLE NUMBER (YEAR), \\doi{DOI}.")
         # Test that a reference with an arXiv id which has been published is correctly cited.
         reference = Reference("\\bibitem{Dubail}, Dubail et. al. \emph{Conformal Field Theory for "
                               "Inhomogeneous One-dimensional Quantum Systems: the Example of "
