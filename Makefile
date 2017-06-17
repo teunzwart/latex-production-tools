@@ -1,3 +1,3 @@
 .PHONY runtests:
-	python -m unittest discover tests/ -v -c
+	python -m unittest discover tests/ -v -c -b
 

@@ -109,7 +109,7 @@ class LatexPreparer:
         """Retrieve the arXiv data (title, authors, abstract) for a submission."""
         reference = Reference(f"arXiv:{self.arxiv_id}")
         reference.main()
-        self.title = reference.title
+        self.title = re.sub(r"[ ]{2,}", " ", reference.title)  # Remove occurences of more than one space.
         self.full_authors = reference.full_authors
         self.abbreviated_authors = reference.abbreviated_authors
         self.first_author_last_name = remove_accented_characters(reference.first_author_last_name.replace(" ", "_"))
