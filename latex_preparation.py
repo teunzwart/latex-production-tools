@@ -25,7 +25,6 @@ def extract_submission_content(latex_source):
 def extract_packages(latex_source):
     """Extract packages and package options from a LaTeX source."""
     production_packages = []
-    raw_packages = []
     usepackages = re.findall(r"(?<!%)\\usepackage.*?{.*?}", latex_source)
     for package in usepackages:
         print(package)
@@ -33,7 +32,7 @@ def extract_packages(latex_source):
         print(package_name)
         if package_name in ["amssymb", "a4wide"]:
             production_packages.append("% REMOVED IN PROD " + package)
-        elif package_name in ["amsmath", "doi", "fancyhdr", "geometry", "graphicx", "hyperref", "inputenc", "lineno", "titlesec", "tocloft", "nottoc", "notlot","notlof", "xcolor"]:
+        elif package_name in ["amsmath", "doi", "fancyhdr", "geometry", "graphicx", "hyperref", "inputenc", "lineno", "titlesec", "tocloft", "nottoc", "notlot", "notlof", "xcolor"]:
             pass
         else:
             production_packages.append(package)
@@ -47,7 +46,8 @@ def extract_commands(latex_source):
     commands += re.findall(r"(?<=\n)\\newcommand.*", latex_source)
     commands += re.findall(r"(?<=\n)\\def.*", latex_source)
     return "\n".join(commands)
-        
+
+
 class LatexPreparer:
     def __init__(self, submission_address):
         self.submission_address = submission_address
@@ -167,14 +167,13 @@ class LatexPreparer:
             # TODO: Handle multiple tex files in a submission.
             elif os.path.splitext(file_name)[-1] == ".tex" and file_name not in ["SciPost_Phys_Skeleton.tex", self.publication_tex_filename]:
                 self.original_tex_source = read_latex_file(os.path.join(self.publication_production_folder, file_name))
-        
+
         self.content = extract_submission_content(self.original_tex_source)
         self.packages = extract_packages(self.original_tex_source)
         self.commands = extract_commands(self.original_tex_source)
 
         if not self.references:
             self.references = "\n\n".join(extract_bibtex_items(self.original_tex_source))
-
 
     def edit_tex_file(self):
         """Edit a tex file."""
@@ -196,7 +195,6 @@ class LatexPreparer:
         new_commands = f"%%%%%%%%%% TODO: COMMANDS\n\n{self.commands}\n%%%%%%%%%% END TODO: COMMANDS"
         self.production_tex_source = self.production_tex_source.replace(old_commands, new_commands)
 
-        
         old_title = "% multiline titles: end with a \\\\ to regularize line spacing"
         new_title = f"% multiline titles: end with a \\\\ to regularize line spacing\n{self.title}\\\\"
         self.production_tex_source = self.production_tex_source.replace(old_title, new_title)
@@ -204,7 +202,7 @@ class LatexPreparer:
         old_authors = "A. Bee\\textsuperscript{1,2},\nC. Dee \\textsuperscript{1} and\nE. Eff \\textsuperscript{3*}"
         new_authors = concatenate_authors(self.full_authors)
         self.production_tex_source = self.production_tex_source.replace(old_authors, new_authors)
-        
+
         old_abstract = "%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n%%%%%%%%%% END TODO: ABSTRACT"
         new_abstract = f"%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n{self.abstract}\n%%%%%%%%%% END TODO: ABSTRACT"
         self.production_tex_source = self.production_tex_source.replace(old_abstract, new_abstract)
