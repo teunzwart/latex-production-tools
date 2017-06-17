@@ -26,18 +26,14 @@ def extract_packages(latex_source):
     """Extract packages and package options from a LaTeX source."""
     production_packages = []
     raw_packages = []
-    document_class_packages = re.search(r"(?!<%)\\documentclass\[(.*?)]{", latex_source, re.DOTALL).group(1).split(",")
-    print(document_class_packages)
-    print("HELO")
-    if document_class_packages:
-        for option in document_class_packages:
-            print(option)
     usepackages = re.findall(r"(?<!%)\\usepackage.*?{.*?}", latex_source)
     for package in usepackages:
-        package_name = re.search(r"{(.*?)}", package).group(1).split(",")
+        print(package)
+        package_name = re.search(r"{(.*?)}", package).group(1).split(",")[0]
+        print(package_name)
         if package_name in ["amssymb", "a4wide"]:
-            production_packages.append("% REMOVED IN PROD" + package)
-        elif package_name in ["doi", "amsmath", "graphicx", "hyperref"]:
+            production_packages.append("% REMOVED IN PROD " + package)
+        elif package_name in ["amsmath", "doi", "fancyhdr", "geometry", "graphicx", "hyperref", "inputenc", "lineno", "titlesec", "tocloft", "nottoc", "notlot","notlof", "xcolor"]:
             pass
         else:
             production_packages.append(package)
@@ -48,8 +44,8 @@ def extract_packages(latex_source):
 
 def extract_commands(latex_source):
     commands = []
-    commands += re.findall(r"(?<=\n)\\newcommand.*", self.original_tex_source)
-    commands += re.findall(r"(?<=\n)\\def.*", self.original_tex_source)
+    commands += re.findall(r"(?<=\n)\\newcommand.*", latex_source)
+    commands += re.findall(r"(?<=\n)\\def.*", latex_source)
     return "\n".join(commands)
         
 class LatexPreparer:
@@ -80,9 +76,9 @@ class LatexPreparer:
         self.retrieve_arxiv_metadata()
         self.prepare_production_folder()
         self.download_arxiv_source()
-        latex_preparer.prepare_paper_data()
-        latex_preparer.edit_tex_file()
-        latex_preparer.run_pdflatex()
+        self.prepare_paper_data()
+        self.edit_tex_file()
+        # self.run_pdflatex()
 
     def retrieve_scipost_submission_data(self):
         """Retrieve a submission's webpage and extract metadata."""
@@ -197,7 +193,7 @@ class LatexPreparer:
         self.production_tex_source = self.production_tex_source.replace(old_packages, new_packages)
 
         old_commands = "%%%%%%%%%% TODO: COMMANDS\n\n%%%%%%%%%% END TODO: COMMANDS"
-        new_commands = f"%%%%%%%%%% TODO: COMMANDS\n\n{self.new_commands}\n%%%%%%%%%% END TODO: COMMANDS"
+        new_commands = f"%%%%%%%%%% TODO: COMMANDS\n\n{self.commands}\n%%%%%%%%%% END TODO: COMMANDS"
         self.production_tex_source = self.production_tex_source.replace(old_commands, new_commands)
 
         
@@ -230,7 +226,7 @@ class LatexPreparer:
         self.production_tex_source = self.production_tex_source.replace(old_lineno, new_lineno)
 
         old_contents = "%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n\n\n%%%%%%%%% END TODO: CONTENTS"
-        new_contents = f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.paper_content}\n\n%%%%%%%%% END TODO: CONTENTS"
+        new_contents = f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.content}\n\n%%%%%%%%% END TODO: CONTENTS"
         self.production_tex_source = self.production_tex_source.replace(old_contents, new_contents)
 
         if self.references:
