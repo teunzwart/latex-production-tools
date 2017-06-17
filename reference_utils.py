@@ -1,4 +1,5 @@
 import re
+import sys
 
 from bs4 import BeautifulSoup
 
@@ -63,7 +64,10 @@ def extract_doi(bibtex_item):
     """Extract the DOI (singular) from a bibtex item."""
     # TODO: Gracefully handle multiple DOI's in a given piece of text.
     try:
-        doi = re.search(r"(10\.\d{4,}\/[^} \n]*)", bibtex_item)
+        doi_regex = re.compile(r"""
+        (10\.\d{4,}\/[^} \n]*)
+        """, re.VERBOSE)
+        doi = doi_regex.search(bibtex_item)
         return doi.group(1).rstrip()
     except AttributeError:
         return None
@@ -74,7 +78,7 @@ def extract_arxiv_id(bibtex_item):
     try:
         arxiv_id_regex = re.compile(r"""abs\/(.*?)(?=\ |}|$)  # Match in a url.
                                     |arxiv:(.*?)(?=\ |}|$|])  # Match in a arXiv tag.
-                                    |\\eprint{(.*?)}  # Match in an eprint tag.
+                                    |\\eprint{(.*?)}          # Match in an eprint tag.
                                     """, re.IGNORECASE | re.VERBOSE)
         arxiv_id = arxiv_id_regex.search(bibtex_item)
         # Find the group which has a match.
@@ -158,6 +162,8 @@ class Reference:
     def extract_arxiv_reference_data(self):
         """Extract arXiv data for a reference, and the DOI information, if a DOI is available."""
         soup = BeautifulSoup(self.arxiv_data, "html5lib")
+        print(soup)
+        print(self.arxiv_id)
         self.title = re.sub(" +", " ", re.sub("\n", "", soup.entry.title.string.strip()))
         self.full_authors = [a.string for a in soup.find_all("name")]
         self.abbreviated_authors = abbreviate_authors(self.full_authors)
@@ -262,7 +268,7 @@ class Reference:
         elif self.arxiv_data:
             reference = f"{authors_and_title}, \href{{https://arxiv.org/abs/{self.arxiv_id}}}{{arXiv:{self.arxiv_id}}}. % Has this been published somewhere?"
         else:
-            reference = "AUTHORS, \\textit{{TITLE}}, JOURNAL \\textbf{{VOLUME}}, PAGE/ARTICLE NUMBER (YEAR), \doi{{DOI}}."
+            reference = "AUTHORS, \\textit{TITLE}, JOURNAL \\textbf{VOLUME}, PAGE/ARTICLE NUMBER (YEAR), \doi{DOI}."
 
         # Remove any newlines which are included in the formatted reference.
         self.formatted_reference = re.sub(r"\n", "", reference)
