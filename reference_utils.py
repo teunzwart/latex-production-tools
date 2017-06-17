@@ -163,8 +163,6 @@ class Reference:
     def extract_arxiv_reference_data(self):
         """Extract arXiv data for a reference, and the DOI information, if a DOI is available."""
         soup = BeautifulSoup(self.arxiv_data, "html5lib")
-        print(soup)
-        print(self.arxiv_id)
         self.title = re.sub(" +", " ", re.sub("\n", "", soup.entry.title.string.strip()))
         self.full_authors = [a.string for a in soup.find_all("name")]
         self.abbreviated_authors = abbreviate_authors(self.full_authors)
