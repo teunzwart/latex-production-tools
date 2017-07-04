@@ -84,7 +84,7 @@ class LatexPreparer:
     def retrieve_scipost_submission_data(self):
         """Retrieve a submission's webpage and extract metadata."""
         print("Retrieving SciPost submission data...")
-        submission_page = open_webpage(self.submission_address)
+        _, submission_page = open_webpage(self.submission_address)
         submission_page = BeautifulSoup(submission_page.text, "html5lib")
         # Check that the latest version for the submission is retrieved.
         submission_version = submission_page.find(text="SciPost Submission Page").parent.find_next("h3").text
@@ -94,7 +94,7 @@ class LatexPreparer:
         # Extract submission date (date that first version was submitted).
         if submission_page.find(text="Other versions of this Submission (with Reports) exist:"):
             oldest_version = submission_page.find(class_="pubtitleli")["href"]  # First instance is first version.
-            oldest_version_page = open_webpage(f"https://www.scipost.org{oldest_version}")
+            _, oldest_version_page = open_webpage(f"https://www.scipost.org{oldest_version}")
             oldest_version_page = BeautifulSoup(oldest_version_page.text, "html5lib")
             submission_date = oldest_version_page.find(text="Date submitted:").parent.find_next("td").text.strip()
         else:
@@ -134,7 +134,7 @@ class LatexPreparer:
         """Download the LaTeX source for a submission from arXiv."""
         print("Downloading LaTeX source from arXiv...")
         # Note that we use src/ID instead of e-print/ID, since then the source is always returned as a tarfile, even if it's a single file.
-        tex_source_zip = open_webpage(f"https://arxiv.org/src/{self.arxiv_id}")
+        _, tex_source_zip = open_webpage(f"https://arxiv.org/src/{self.arxiv_id}")
         # Save the tar file.
         with open(os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tar.gz"), "wb") as zip_file:
             for chunk in tex_source_zip:

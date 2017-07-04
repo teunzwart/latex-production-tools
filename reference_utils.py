@@ -1,5 +1,4 @@
 import re
-import sys
 
 from bs4 import BeautifulSoup
 
@@ -110,6 +109,7 @@ def concatenate_authors(list_of_authors):
     else:
         return f"{list_of_authors[0]} et al."
 
+
 def remove_arxiv_id_version(arxiv_id):
     """Remove the version from an arXiv id."""
     return re.sub("v\d$", "", arxiv_id)
@@ -145,17 +145,19 @@ class Reference:
     def main(self):
         """Extract DOI's and arXiv id's from a reference, and retrieve data, giving preference to Crossref data."""
         self.bibitem_identifier = extract_bibitem_identifier(self.bibitem_data)
+        split_bibdata = self.bibitem_data.split(";")
+        print(split_bibdata)
         self.doi = extract_doi(self.bibitem_data)
         self.arxiv_id = extract_arxiv_id(self.bibitem_data)
         self.reformatted_original_reference = reformat_original_reference(self.bibitem_data)
         if self.doi:
-            crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
-            if "failed" not in crossref_data:
+            succes, crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
+            if succes:
                 self.crossref_data = crossref_data.json()["message"]
                 self.extract_crossref_reference_data()
         elif self.arxiv_id:
-            arxiv_data = open_webpage(f"https://export.arxiv.org/api/query?search_query={remove_arxiv_id_version(self.arxiv_id)}", exit_on_error=False)
-            if "failed" not in arxiv_data:
+            succes, arxiv_data = open_webpage(f"https://export.arxiv.org/api/query?search_query={remove_arxiv_id_version(self.arxiv_id)}", exit_on_error=False)
+            if succes:
                 self.arxiv_data = arxiv_data.text
                 self.extract_arxiv_reference_data()
         self.format_reference()
@@ -172,8 +174,8 @@ class Reference:
         # Prefer DOI data if it is available.
         try:
             self.doi = soup.find_all("link", title='doi')[0]["href"].lstrip("http://dx.doi.org/")
-            crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
-            if "failed" not in crossref_data:
+            succes, crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
+            if succes:
                 self.crossref_data = crossref_data.json()["message"]
                 self.extract_crossref_reference_data()
         except IndexError:
