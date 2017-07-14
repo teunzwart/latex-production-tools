@@ -79,6 +79,19 @@ def calculate_current_issue(date):
     return issue
 
 
+def get_copyright_holders(authors):
+    """
+    Determine how the names of the authors are shown in copyright.
+    """
+    if len(authors) == 1:
+        copyright_holders = authors[0]
+    elif len(authors) == 2:
+        copyright_holders = " and ".join(authors)
+    else:
+        copyright_holders = authors[0] + "\\textit{et al.}"
+    return copyright_holders
+
+
 class LatexPreparer:
     def __init__(self, submission_address):
         self.submission_address = submission_address
@@ -90,7 +103,9 @@ class LatexPreparer:
         self.title = None
         self.full_authors = None
         self.abbreviated_authors = None
+        self.copyright_holders = None
         self.first_author_last_name = None
+        self.display_authors = None
         self.abstract = None
         self.tex_source_zip = None
         self.original_tex_text = None
@@ -116,13 +131,13 @@ class LatexPreparer:
         print("Retrieving SciPost submission data...")
         _, submission_page = open_webpage(self.submission_address, exit_on_error=True)
         submission_page = BeautifulSoup(submission_page.text, "html5lib")
-        
+
         # Check that the latest version for the submission is retrieved.
         submission_version = submission_page.find(text="SciPost Submission Page").parent.find_next("h3").text
         if submission_version == "This is not the current version.":
             sys.exit("Not the current version.")
         self.arxiv_id = submission_page.find(text="arxiv Link:").parent.find_next("td").text.strip().strip("http://arxiv.org/abs/")
-        
+
         # Extract submission date (date that first version was submitted).
         if submission_page.find(text="Other versions of this Submission (with Reports) exist:"):
             oldest_version = submission_page.find(class_="pubtitleli")["href"]  # First instance is first version on SciPost.
@@ -144,6 +159,7 @@ class LatexPreparer:
         self.abbreviated_authors = reference.abbreviated_authors
         self.first_author_last_name = remove_accented_characters(reference.first_author_last_name.replace(" ", "_"))
         self.abstract = reference.abstract
+        self.copyright_holders = get_copyright_holders(self.abbreviated_authors)
 
     def prepare_production_folder(self, production_path=PRODUCTION_PATH):
         """
@@ -239,8 +255,8 @@ class LatexPreparer:
         new_abstract = f"%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n{self.abstract}\n%%%%%%%%%% END TODO: ABSTRACT"
         self.production_tex_source = self.production_tex_source.replace(old_abstract, new_abstract)
 
-        old_copyright = "{\\small Copyright A. Bee {\\it et al}."
-        new_copyright = "{\\small Copyright DA COPY SQUAD."
+        old_copyright = "\\small Copyright A. Bee {\\it et al}."
+        new_copyright = f"\\small Copyright {self.copyright_holders}."
         self.production_tex_source = self.production_tex_source.replace(old_copyright, new_copyright)
 
         old_received_date = "\\small Received ??-??-20??"
