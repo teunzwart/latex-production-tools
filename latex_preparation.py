@@ -66,11 +66,24 @@ def calculate_current_volume(date):
     return volume
 
 
+def calculate_current_issue(date):
+    """
+    Calculate the current SciPost issue.
+
+    A new issues starts every month, with the number resetting for each volume.
+    """
+    month = int(date.month)
+    issue = month % 6
+    if issue == 0:
+        issue = 6
+    return issue
+
+
 class LatexPreparer:
     def __init__(self, submission_address):
         self.submission_address = submission_address
         now = datetime.datetime.now()
-        self.issue = math.floor((now.month-0.1)/2) + 1  # Slight offset so even months are correctly converted.
+        self.issue = calculate_current_issue(now)
         self.volume = calculate_current_volume(now)
         self.arxiv_id = None
         self.submission_date = None
