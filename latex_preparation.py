@@ -92,6 +92,19 @@ def get_copyright_holders(authors):
     return copyright_holders
 
 
+def get_display_names(authors):
+    """
+    Format the authors names for display at top of the article.
+    """
+    formatted_authors = []
+    for i, author in enumerate(authors):
+        if i + 1 == 1:
+            author += f"\\textsuperscript{{{i+1}$\star$}}"
+        else:
+            author += f"\\textsuperscript{{{i+1}}}"
+        formatted_authors.append(author)
+    return concatenate_authors(formatted_authors)
+
 class LatexPreparer:
     def __init__(self, submission_address):
         self.submission_address = submission_address
@@ -160,6 +173,7 @@ class LatexPreparer:
         self.first_author_last_name = remove_accented_characters(reference.first_author_last_name.replace(" ", "_"))
         self.abstract = reference.abstract
         self.copyright_holders = get_copyright_holders(self.abbreviated_authors)
+        self.display_authors = get_display_names(self.full_authors)
 
     def prepare_production_folder(self, production_path=PRODUCTION_PATH):
         """
@@ -248,7 +262,7 @@ class LatexPreparer:
         self.production_tex_source = self.production_tex_source.replace(old_title, new_title)
 
         old_authors = "A. Bee\\textsuperscript{1,2},\nC. Dee\\textsuperscript{1} and\nE. Eff\\textsuperscript{3$\star$}"
-        new_authors = concatenate_authors(self.full_authors)
+        new_authors = self.display_authors
         self.production_tex_source = self.production_tex_source.replace(old_authors, new_authors)
 
         old_abstract = "%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n%%%%%%%%%% END TODO: ABSTRACT"
