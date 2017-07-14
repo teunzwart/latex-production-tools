@@ -156,7 +156,7 @@ class Reference:
                 self.crossref_data = crossref_data.json()["message"]
                 self.extract_crossref_reference_data()
         elif self.arxiv_id:
-            succes, arxiv_data = open_webpage(f"https://export.arxiv.org/api/query?search_query={remove_arxiv_id_version(self.arxiv_id)}", exit_on_error=False)
+            succes, arxiv_data = open_webpage(f"https://export.arxiv.org/api/query?id_list={remove_arxiv_id_version(self.arxiv_id)}", exit_on_error=False)
             if succes:
                 self.arxiv_data = arxiv_data.text
                 self.extract_arxiv_reference_data()
