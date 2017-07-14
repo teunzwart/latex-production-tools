@@ -60,11 +60,11 @@ def calculate_current_volume(date):
     year = date.year
     years_running = year - 2016
     months_running = years_running * 12 + 6  # First six months of operation in 2016.
-    volume = math.floor(months_running)
+    volume = math.floor(months_running / 6)
     if month < 7:
         volume -= 1
     return volume
-    
+
 
 class LatexPreparer:
     def __init__(self, submission_address):
@@ -101,21 +101,24 @@ class LatexPreparer:
     def retrieve_scipost_submission_data(self):
         """Retrieve a submission's webpage and extract metadata."""
         print("Retrieving SciPost submission data...")
-        _, submission_page = open_webpage(self.submission_address)
+        _, submission_page = open_webpage(self.submission_address, exit_on_error=True)
         submission_page = BeautifulSoup(submission_page.text, "html5lib")
+        
         # Check that the latest version for the submission is retrieved.
         submission_version = submission_page.find(text="SciPost Submission Page").parent.find_next("h3").text
         if submission_version == "This is not the current version.":
             sys.exit("Not the current version.")
         self.arxiv_id = submission_page.find(text="arxiv Link:").parent.find_next("td").text.strip().strip("http://arxiv.org/abs/")
+        
         # Extract submission date (date that first version was submitted).
         if submission_page.find(text="Other versions of this Submission (with Reports) exist:"):
-            oldest_version = submission_page.find(class_="pubtitleli")["href"]  # First instance is first version.
-            _, oldest_version_page = open_webpage(f"https://www.scipost.org{oldest_version}")
+            oldest_version = submission_page.find(class_="pubtitleli")["href"]  # First instance is first version on SciPost.
+            _, oldest_version_page = open_webpage(f"https://www.scipost.org{oldest_version}", exit_on_error=True)
             oldest_version_page = BeautifulSoup(oldest_version_page.text, "html5lib")
             submission_date = oldest_version_page.find(text="Date submitted:").parent.find_next("td").text.strip()
         else:
             submission_date = submission_page.find(text="Date submitted:").parent.find_next("td").text.strip()
+
         # Change from YYYY-MM-DD to DD-MM-YYYY.
         self.submission_date = "-".join(submission_date.split("-")[::-1])
 
@@ -151,7 +154,7 @@ class LatexPreparer:
         """Download the LaTeX source for a submission from arXiv."""
         print("Downloading LaTeX source from arXiv...")
         # Note that we use src/ID instead of e-print/ID, since then the source is always returned as a tarfile, even if it's a single file.
-        _, tex_source_zip = open_webpage(f"https://arxiv.org/src/{self.arxiv_id}")
+        _, tex_source_zip = open_webpage(f"https://arxiv.org/src/{self.arxiv_id}", exit_on_error=True)
         # Save the tar file.
         with open(os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tar.gz"), "wb") as zip_file:
             for chunk in tex_source_zip:
@@ -172,7 +175,7 @@ class LatexPreparer:
                         # Copy directories and their contents.
                         if os.path.isdir(os.path.join(self.publication_production_folder, self.arxiv_id, file_name)):
                             shutil.copytree(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), os.path.join(self.publication_production_folder, file_name))
-                            # Copy individual files.
+                        # Copy individual files.
                         else:
                             shutil.copy2(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), self.publication_production_folder)
 
@@ -183,7 +186,6 @@ class LatexPreparer:
             if os.path.splitext(file_name)[-1] == ".bbl":
                 print("Found bbl")
                 references = read_latex_file(os.path.join(self.publication_production_folder, file_name))
-                print(references)
                 self.references = "\n\n".join(extract_bibtex_items(references))
             # TODO: Handle multiple tex files in a submission.
             elif os.path.splitext(file_name)[-1] == ".tex" and file_name not in ["SciPost_Phys_Skeleton.tex", self.publication_tex_filename]:
@@ -241,8 +243,8 @@ class LatexPreparer:
         self.production_tex_source = self.production_tex_source.replace(old_contents, new_contents)
 
         if self.references:
-            old_references = "TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here"
-            new_references = f"TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here\n\n{self.references}"
+            old_references = "TODO: BBL IF BiBTeX was used: paste the contents of the .bbl file here"
+            new_references = f"TODO: BBL IF BiBTeX was used: paste the contents of the .bbl file here\n\n{self.references}"
             self.production_tex_source = self.production_tex_source.replace(old_references, new_references)
 
         print("Processing references...")
