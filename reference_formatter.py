@@ -23,7 +23,7 @@ def format_references(latex_source):
         res = pool.map(get_reference, bibtex_entries)
     for r in res:
         bibitem_data, bibitem_identifier, reformatted_original_reference, formatted_reference = r
-        latex_source = latex_source.replace(bibitem_data, f"\\bibitem{{{bibitem_identifier}}} TODO\n{reformatted_original_reference}\n\n%{formatted_reference}\n\n\n")
+        latex_source = latex_source.replace(bibitem_data, f"\\bibitem{{{bibitem_identifier}}} \\textcolor{{red}}{{TODO}}\n{reformatted_original_reference}\n\n%{formatted_reference}\n\n\n")
     return latex_source
 
 
