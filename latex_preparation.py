@@ -88,7 +88,7 @@ def get_copyright_holders(authors):
     elif len(authors) == 2:
         copyright_holders = " and ".join(authors)
     else:
-        copyright_holders = authors[0] + "\\textit{et al.}"
+        copyright_holders = authors[0] + "\\textit{ et al.}"
     return copyright_holders
 
 
@@ -104,6 +104,7 @@ def get_display_names(authors):
             author += f"\\textsuperscript{{{i+1}}}"
         formatted_authors.append(author)
     return concatenate_authors(formatted_authors)
+
 
 class LatexPreparer:
     def __init__(self, submission_address):
@@ -293,6 +294,24 @@ class LatexPreparer:
         print("Processing references...")
         self.production_tex_source = format_references(self.production_tex_source)
 
+
+        self.production_tex_source = re.sub(r"\\begin{figure}[\[!a-z\]]*", r"\\begin{figure}[tb!]", self.production_tex_source)
+
+        self.production_tex_source = self.production_tex_source.replace("\\newpage", "")
+
+        no_of_bibitems = len(extract_bibtex_items(self.production_tex_source))
+        if no_of_bibitems > 99:
+            self.production_tex_source.replace("\\begin{thebibliography}{99}", "\begin{thebibliography}{999}")
+
+        self.production_tex_source = self.production_tex_source.replace("\\acknowledgments", "\\section*{Acknowledgements}")
+        self.production_tex_source = self.production_tex_source.replace("\\begin{acknowledgements}", "\\section*{Acknowledgements}")
+        self.production_tex_source = self.production_tex_source.replace("\\end{acknowledgements}", "")
+
+
+        self.production_tex_source = self.production_tex_source.replace("\\begin{widetext}", "#\\begin{widetext}\n")
+        self.production_tex_source = self.production_tex_source.replace("\\end{widetext}", "#\\end{widetext}\n")
+
+        
         write_latex_file(os.path.join(self.publication_production_folder, self.publication_tex_filename), self.production_tex_source)
 
     def run_pdflatex(self):
