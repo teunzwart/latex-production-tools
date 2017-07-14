@@ -1,8 +1,9 @@
+import datetime
 import os
-import unittest
 import tempfile
+import unittest
 
-from latex_preparation import LatexPreparer
+from latex_preparation import LatexPreparer, calculate_current_volume
 
 
 class TestLatexPreparer(unittest.TestCase):
@@ -107,6 +108,11 @@ class TestLatexPreparer(unittest.TestCase):
                               'setup.pdf',
                               'Setup_basic.pdf',
                               'windowfunction.pdf'])
+
+    def test_volume_calculation(self):
+        """Test that the volume is correctly calculated."""
+        self.assertEqual(calculate_current_volume(datetime.datetime(2018, 7, 14, 14, 36, 37, 460413)), 5)
+        self.assertEqual(calculate_current_volume(datetime.datetime(2017, 3, 14, 14, 36, 37, 460413)), 2)
 
 
 if __name__ == "__main__":
