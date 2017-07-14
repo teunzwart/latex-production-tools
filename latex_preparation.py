@@ -49,12 +49,29 @@ def extract_commands(latex_source):
     return "\n".join(commands)
 
 
+def calculate_current_volume(date):
+    """
+    Calculate the current SciPost volume.
+
+    A new volume is started every six months, in January and July.
+    First volume ran from July 2016 to (end of) December 2016.
+    """
+    month = date.month
+    year = date.year
+    years_running = year - 2016
+    months_running = years_running * 12 + 6  # First six months of operation in 2016.
+    volume = math.floor(months_running)
+    if month < 7:
+        volume -= 1
+    return volume
+    
+
 class LatexPreparer:
     def __init__(self, submission_address):
         self.submission_address = submission_address
         now = datetime.datetime.now()
         self.issue = math.floor((now.month-0.1)/2) + 1  # Slight offset so even months are correctly converted.
-        self.volume = now.year - 2015
+        self.volume = calculate_current_volume(now)
         self.arxiv_id = None
         self.submission_date = None
         self.title = None
