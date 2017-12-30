@@ -25,19 +25,14 @@ def extract_submission_content(latex_source):
 def extract_packages(latex_source):
     """Extract packages and package options from a LaTeX source."""
     production_packages = []
-    raw_packages = []
-    document_class_packages = re.search(r"(?!<%)\\documentclass\[(.*?)]{", latex_source, re.DOTALL).group(1).split(",")
-    print(document_class_packages)
-    print("HELO")
-    if document_class_packages:
-        for option in document_class_packages:
-            print(option)
     usepackages = re.findall(r"(?<!%)\\usepackage.*?{.*?}", latex_source)
     for package in usepackages:
-        package_name = re.search(r"{(.*?)}", package).group(1).split(",")
+        print(package)
+        package_name = re.search(r"{(.*?)}", package).group(1).split(",")[0]
+        print(package_name)
         if package_name in ["amssymb", "a4wide"]:
-            production_packages.append("% REMOVED IN PROD" + package)
-        elif package_name in ["doi", "amsmath", "graphicx", "hyperref"]:
+            production_packages.append("% REMOVED IN PROD " + package)
+        elif package_name in ["amsmath", "doi", "fancyhdr", "geometry", "graphicx", "hyperref", "inputenc", "lineno", "titlesec", "tocloft", "nottoc", "notlot", "notlof", "xcolor"]:
             pass
         else:
             production_packages.append(package)
@@ -48,22 +43,83 @@ def extract_packages(latex_source):
 
 def extract_commands(latex_source):
     commands = []
-    commands += re.findall(r"(?<=\n)\\newcommand.*", self.original_tex_source)
-    commands += re.findall(r"(?<=\n)\\def.*", self.original_tex_source)
+    commands += re.findall(r"(?<=\n)\\newcommand.*", latex_source)
+    commands += re.findall(r"(?<=\n)\\def.*", latex_source)
+    commands += re.findall(r"(?<=\n)\\DeclareMathOperator.*", latex_source)
     return "\n".join(commands)
-        
+
+
+def calculate_current_volume(date):
+    """
+    Calculate the current SciPost volume.
+
+    A new volume is started every six months, in January and July.
+    First volume ran from July 2016 to (end of) December 2016.
+    """
+    month = date.month
+    year = date.year
+    years_running = year - 2016
+    months_running = years_running * 12 + 6  # First six months of operation in 2016.
+    volume = math.floor(months_running / 6)
+    if month < 7:
+        volume -= 1
+    return volume
+
+
+def calculate_current_issue(date):
+    """
+    Calculate the current SciPost issue.
+
+    A new issues starts every month, with the number resetting for each volume.
+    """
+    month = int(date.month)
+    issue = month % 6
+    if issue == 0:
+        issue = 6
+    return issue
+
+
+def get_copyright_holders(authors):
+    """
+    Determine how the names of the authors are shown in copyright.
+    """
+    if len(authors) == 1:
+        copyright_holders = authors[0]
+    elif len(authors) == 2:
+        copyright_holders = " and ".join(authors)
+    else:
+        copyright_holders = authors[0] + "\\textit{ et al.}"
+    return copyright_holders
+
+
+def get_display_names(authors):
+    """
+    Format the authors names for display at top of the article.
+    """
+    formatted_authors = []
+    for i, author in enumerate(authors):
+        if i + 1 == 1:
+            author += f"\\textsuperscript{{{i+1}$\star$}}"
+        else:
+            author += f"\\textsuperscript{{{i+1}}}"
+        formatted_authors.append(author)
+    return concatenate_authors(formatted_authors)
+
+
 class LatexPreparer:
     def __init__(self, submission_address):
         self.submission_address = submission_address
         now = datetime.datetime.now()
-        self.issue = math.floor((now.month-0.1)/2) + 1  # Slight offset so even months are correctly converted.
-        self.volume = now.year - 2015
+        self.issue = calculate_current_issue(now)
+        self.volume = calculate_current_volume(now)
         self.arxiv_id = None
         self.submission_date = None
         self.title = None
         self.full_authors = None
         self.abbreviated_authors = None
+        self.copyright_holders = None
         self.first_author_last_name = None
+        self.display_authors = None
         self.abstract = None
         self.tex_source_zip = None
         self.original_tex_text = None
@@ -80,28 +136,31 @@ class LatexPreparer:
         self.retrieve_arxiv_metadata()
         self.prepare_production_folder()
         self.download_arxiv_source()
-        latex_preparer.prepare_paper_data()
-        latex_preparer.edit_tex_file()
-        latex_preparer.run_pdflatex()
+        self.prepare_paper_data()
+        self.edit_tex_file()
+        self.run_pdflatex()
 
     def retrieve_scipost_submission_data(self):
         """Retrieve a submission's webpage and extract metadata."""
         print("Retrieving SciPost submission data...")
-        submission_page = open_webpage(self.submission_address)
+        _, submission_page = open_webpage(self.submission_address, exit_on_error=True)
         submission_page = BeautifulSoup(submission_page.text, "html5lib")
+
         # Check that the latest version for the submission is retrieved.
         submission_version = submission_page.find(text="SciPost Submission Page").parent.find_next("h3").text
         if submission_version == "This is not the current version.":
             sys.exit("Not the current version.")
         self.arxiv_id = submission_page.find(text="arxiv Link:").parent.find_next("td").text.strip().strip("http://arxiv.org/abs/")
+
         # Extract submission date (date that first version was submitted).
         if submission_page.find(text="Other versions of this Submission (with Reports) exist:"):
-            oldest_version = submission_page.find(class_="pubtitleli")["href"]  # First instance is first version.
-            oldest_version_page = open_webpage(f"https://www.scipost.org{oldest_version}")
+            oldest_version = submission_page.find(class_="pubtitleli")["href"]  # First instance is first version on SciPost.
+            _, oldest_version_page = open_webpage(f"https://www.scipost.org{oldest_version}", exit_on_error=True)
             oldest_version_page = BeautifulSoup(oldest_version_page.text, "html5lib")
             submission_date = oldest_version_page.find(text="Date submitted:").parent.find_next("td").text.strip()
         else:
             submission_date = submission_page.find(text="Date submitted:").parent.find_next("td").text.strip()
+
         # Change from YYYY-MM-DD to DD-MM-YYYY.
         self.submission_date = "-".join(submission_date.split("-")[::-1])
 
@@ -109,11 +168,13 @@ class LatexPreparer:
         """Retrieve the arXiv data (title, authors, abstract) for a submission."""
         reference = Reference(f"arXiv:{self.arxiv_id}")
         reference.main()
-        self.title = reference.title
+        self.title = re.sub(r"[ ]{2,}", " ", reference.title)  # Remove occurences of more than one space.
         self.full_authors = reference.full_authors
         self.abbreviated_authors = reference.abbreviated_authors
         self.first_author_last_name = remove_accented_characters(reference.first_author_last_name.replace(" ", "_"))
         self.abstract = reference.abstract
+        self.copyright_holders = get_copyright_holders(self.abbreviated_authors)
+        self.display_authors = get_display_names(self.full_authors)
 
     def prepare_production_folder(self, production_path=PRODUCTION_PATH):
         """
@@ -137,7 +198,7 @@ class LatexPreparer:
         """Download the LaTeX source for a submission from arXiv."""
         print("Downloading LaTeX source from arXiv...")
         # Note that we use src/ID instead of e-print/ID, since then the source is always returned as a tarfile, even if it's a single file.
-        tex_source_zip = open_webpage(f"https://arxiv.org/src/{self.arxiv_id}")
+        _, tex_source_zip = open_webpage(f"https://arxiv.org/src/{self.arxiv_id}", exit_on_error=True)
         # Save the tar file.
         with open(os.path.join(self.publication_production_folder, f"{self.arxiv_id}.tar.gz"), "wb") as zip_file:
             for chunk in tex_source_zip:
@@ -158,20 +219,22 @@ class LatexPreparer:
                         # Copy directories and their contents.
                         if os.path.isdir(os.path.join(self.publication_production_folder, self.arxiv_id, file_name)):
                             shutil.copytree(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), os.path.join(self.publication_production_folder, file_name))
-                            # Copy individual files.
+                        # Copy individual files.
                         else:
                             shutil.copy2(os.path.join(self.publication_production_folder, self.arxiv_id, file_name), self.publication_production_folder)
 
     def prepare_paper_data(self):
         """Prepare and extract data from the LaTeX source file of a submission."""
         for file_name in os.listdir(self.publication_production_folder):
+            print(file_name)
             if os.path.splitext(file_name)[-1] == ".bbl":
+                print("Found bbl")
                 references = read_latex_file(os.path.join(self.publication_production_folder, file_name))
                 self.references = "\n\n".join(extract_bibtex_items(references))
             # TODO: Handle multiple tex files in a submission.
             elif os.path.splitext(file_name)[-1] == ".tex" and file_name not in ["SciPost_Phys_Skeleton.tex", self.publication_tex_filename]:
                 self.original_tex_source = read_latex_file(os.path.join(self.publication_production_folder, file_name))
-        
+
         self.content = extract_submission_content(self.original_tex_source)
         self.packages = extract_packages(self.original_tex_source)
         self.commands = extract_commands(self.original_tex_source)
@@ -179,68 +242,76 @@ class LatexPreparer:
         if not self.references:
             self.references = "\n\n".join(extract_bibtex_items(self.original_tex_source))
 
-
     def edit_tex_file(self):
         """Edit a tex file."""
         self.production_tex_source = read_latex_file(os.path.join(self.publication_production_folder, self.publication_tex_filename))
 
-        old_citation_1 = "%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 1"
-        new_citation_1 = f"%%%%%%%%%% TODO: PAPER CITATION 1\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 1"
-        self.production_tex_source = self.production_tex_source.replace(old_citation_1, new_citation_1)
-
-        old_citation_2 = "%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION 2"
-        new_citation_2 = f"%%%%%%%%%% TODO: PAPER CITATION 2\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION 2"
-        self.production_tex_source = self.production_tex_source.replace(old_citation_2, new_citation_2)
+        old_citation = "%%%%%%%%%% TODO: PAPER CITATION\n\\rhead{\\small \\href{https://scipost.org/SciPostPhys.?.?.???}{SciPost Phys. ?, ??? (20??)}}\n%%%%%%%%%% END TODO: PAPER CITATION"
+        new_citation = f"%%%%%%%%%% TODO: PAPER CITATION\n\\rhead{{\\small \\href{{https://scipost.org/SciPostPhys.{self.volume}.{self.issue}.???}}{{SciPost Phys. {self.volume}, ??? ({self.year})}}}}\n%%%%%%%%%% END TODO: PAPER CITATION"
+        self.production_tex_source = self.production_tex_source.replace(old_citation, new_citation)
 
         old_packages = "%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n% ADDED IN PRODUCTION"
         new_packages = f"%%%%%%%%%% TODO: PACKAGES include extra packages used by authors:\n\n{self.packages}\n\n% ADDED IN PRODUCTION"
         self.production_tex_source = self.production_tex_source.replace(old_packages, new_packages)
 
         old_commands = "%%%%%%%%%% TODO: COMMANDS\n\n%%%%%%%%%% END TODO: COMMANDS"
-        new_commands = f"%%%%%%%%%% TODO: COMMANDS\n\n{self.new_commands}\n%%%%%%%%%% END TODO: COMMANDS"
+        new_commands = f"%%%%%%%%%% TODO: COMMANDS\n\n{self.commands}\n%%%%%%%%%% END TODO: COMMANDS"
         self.production_tex_source = self.production_tex_source.replace(old_commands, new_commands)
 
-        
         old_title = "% multiline titles: end with a \\\\ to regularize line spacing"
         new_title = f"% multiline titles: end with a \\\\ to regularize line spacing\n{self.title}\\\\"
         self.production_tex_source = self.production_tex_source.replace(old_title, new_title)
 
-        old_authors = "A. Bee\\textsuperscript{1,2},\nC. Dee \\textsuperscript{1} and\nE. Eff \\textsuperscript{3*}"
-        new_authors = concatenate_authors(self.full_authors)
+        old_authors = "A. Bee\\textsuperscript{1,2},\nC. Dee\\textsuperscript{1} and\nE. Eff\\textsuperscript{3$\star$}"
+        new_authors = self.display_authors
         self.production_tex_source = self.production_tex_source.replace(old_authors, new_authors)
-        
+
         old_abstract = "%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n%%%%%%%%%% END TODO: ABSTRACT"
         new_abstract = f"%%%%%%%%%% TODO: ABSTRACT Paste abstract here\n{self.abstract}\n%%%%%%%%%% END TODO: ABSTRACT"
         self.production_tex_source = self.production_tex_source.replace(old_abstract, new_abstract)
 
-        old_copyright = "{\\small Copyright A. Bee {\\it et al}."
-        new_copyright = "{\\small Copyright DA COPY SQUAD."
+        old_copyright = "\\small Copyright A. Bee {\\it et al}."
+        new_copyright = f"\\small Copyright {self.copyright_holders}."
         self.production_tex_source = self.production_tex_source.replace(old_copyright, new_copyright)
 
         old_received_date = "\\small Received ??-??-20??"
         new_received_date = f"\\small Received {self.submission_date}"
         self.production_tex_source = self.production_tex_source.replace(old_received_date, new_received_date)
 
-        old_doi = "\\href{https://doi.org/10.21468/SciPostPhys.?.?.???}{doi:10.21468/SciPostPhys.?.?.???}"
-        new_doi = f"\\href{{https://doi.org/10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}{{doi:10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}"
+        old_doi = "\\doi{10.21468/SciPostPhys.?.?.???}"
+        new_doi = f"\\doi{{10.21468/SciPostPhys.{self.volume}.{self.issue}.???}}"
         self.production_tex_source = self.production_tex_source.replace(old_doi, new_doi)
 
-        old_lineno = "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n%\\linenumbers"
-        new_lineno = "%%%%%%%%%% TODO: LINENO Activate linenumbers during proofs stage\n\\linenumbers"
-        self.production_tex_source = self.production_tex_source.replace(old_lineno, new_lineno)
-
         old_contents = "%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n\n\n%%%%%%%%% END TODO: CONTENTS"
-        new_contents = f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.paper_content}\n\n%%%%%%%%% END TODO: CONTENTS"
+        new_contents = f"%%%%%%%%% TODO: CONTENTS Contents come here, starting from first \\section\n\n{self.content}\n\n%%%%%%%%% END TODO: CONTENTS"
         self.production_tex_source = self.production_tex_source.replace(old_contents, new_contents)
 
         if self.references:
-            old_references = "TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here"
-            new_references = f"TODO: BBL IF BiBTeX was used: paste the contenst of the .bbl file here\n\n{self.references}"
+            old_references = "TODO: BBL IF BiBTeX was used: paste the contents of the .bbl file here"
+            new_references = f"TODO: BBL IF BiBTeX was used: paste the contents of the .bbl file here\n\n{self.references}"
             self.production_tex_source = self.production_tex_source.replace(old_references, new_references)
 
         print("Processing references...")
         self.production_tex_source = format_references(self.production_tex_source)
 
+
+        self.production_tex_source = re.sub(r"\\begin{figure}[\[!a-z\]]*", r"\\begin{figure}[tb!]", self.production_tex_source)
+
+        self.production_tex_source = self.production_tex_source.replace("\\newpage", "")
+
+        no_of_bibitems = len(extract_bibtex_items(self.production_tex_source))
+        if no_of_bibitems > 99:
+            self.production_tex_source.replace("\\begin{thebibliography}{99}", "\begin{thebibliography}{999}")
+
+        self.production_tex_source = self.production_tex_source.replace("\\acknowledgments", "\\section*{Acknowledgements}")
+        self.production_tex_source = self.production_tex_source.replace("\\begin{acknowledgements}", "\\section*{Acknowledgements}")
+        self.production_tex_source = self.production_tex_source.replace("\\end{acknowledgements}", "")
+
+
+        self.production_tex_source = self.production_tex_source.replace("\\begin{widetext}", "#\\begin{widetext}\n")
+        self.production_tex_source = self.production_tex_source.replace("\\end{widetext}", "#\\end{widetext}\n")
+
+        
         write_latex_file(os.path.join(self.publication_production_folder, self.publication_tex_filename), self.production_tex_source)
 
     def run_pdflatex(self):

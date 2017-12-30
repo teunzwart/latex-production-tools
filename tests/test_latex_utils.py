@@ -31,6 +31,6 @@ class TestLaTeXUtils(unittest.TestCase):
         with self.assertRaises(SystemExit):
             open_webpage("http://example.com/404")
         # Test no system exit on error.
-        self.assertEqual(open_webpage("http://example.com/404", exit_on_error=False), "failed (404 Client Error: Not Found for url: http://example.com/404)")
+        self.assertFalse(open_webpage("http://example.com/404", exit_on_error=False)[0])
         # Test succesfull connection to site.
-        self.assertEqual(open_webpage("http://example.com/").status_code, 200)
+        self.assertEqual(open_webpage("http://example.com/")[1].status_code, 200)

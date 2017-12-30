@@ -1,5 +1,4 @@
 import re
-import sys
 
 from bs4 import BeautifulSoup
 
@@ -68,7 +67,8 @@ def extract_doi(bibtex_item):
         (10\.\d{4,}\/[^} \n]*)
         """, re.VERBOSE)
         doi = doi_regex.search(bibtex_item)
-        return doi.group(1).rstrip()
+        doi =  doi.group(1).rstrip()
+        return doi.rstrip(";%%")
     except AttributeError:
         return None
 
@@ -109,6 +109,7 @@ def concatenate_authors(list_of_authors):
     else:
         return f"{list_of_authors[0]} et al."
 
+
 def remove_arxiv_id_version(arxiv_id):
     """Remove the version from an arXiv id."""
     return re.sub("v\d$", "", arxiv_id)
@@ -144,17 +145,18 @@ class Reference:
     def main(self):
         """Extract DOI's and arXiv id's from a reference, and retrieve data, giving preference to Crossref data."""
         self.bibitem_identifier = extract_bibitem_identifier(self.bibitem_data)
+        split_bibdata = self.bibitem_data.split(";")
         self.doi = extract_doi(self.bibitem_data)
         self.arxiv_id = extract_arxiv_id(self.bibitem_data)
         self.reformatted_original_reference = reformat_original_reference(self.bibitem_data)
         if self.doi:
-            crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
-            if "failed" not in crossref_data:
+            succes, crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
+            if succes:
                 self.crossref_data = crossref_data.json()["message"]
                 self.extract_crossref_reference_data()
         elif self.arxiv_id:
-            arxiv_data = open_webpage(f"https://export.arxiv.org/api/query?search_query={remove_arxiv_id_version(self.arxiv_id)}", exit_on_error=False)
-            if "failed" not in arxiv_data:
+            succes, arxiv_data = open_webpage(f"https://export.arxiv.org/api/query?id_list={remove_arxiv_id_version(self.arxiv_id)}", exit_on_error=False)
+            if succes:
                 self.arxiv_data = arxiv_data.text
                 self.extract_arxiv_reference_data()
         self.format_reference()
@@ -162,8 +164,6 @@ class Reference:
     def extract_arxiv_reference_data(self):
         """Extract arXiv data for a reference, and the DOI information, if a DOI is available."""
         soup = BeautifulSoup(self.arxiv_data, "html5lib")
-        print(soup)
-        print(self.arxiv_id)
         self.title = re.sub(" +", " ", re.sub("\n", "", soup.entry.title.string.strip()))
         self.full_authors = [a.string for a in soup.find_all("name")]
         self.abbreviated_authors = abbreviate_authors(self.full_authors)
@@ -173,8 +173,8 @@ class Reference:
         # Prefer DOI data if it is available.
         try:
             self.doi = soup.find_all("link", title='doi')[0]["href"].lstrip("http://dx.doi.org/")
-            crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
-            if "failed" not in crossref_data:
+            succes, crossref_data = open_webpage(f"https://api.crossref.org/works/{self.doi}", exit_on_error=False)
+            if succes:
                 self.crossref_data = crossref_data.json()["message"]
                 self.extract_crossref_reference_data()
         except IndexError:
@@ -230,7 +230,7 @@ class Reference:
         except (KeyError, IndexError):
             pass
         try:
-            self.page = self.crossref_data['page']
+            self.page = self.crossref_data['page'].split('-')[0]
         except KeyError:
             pass
         try:
@@ -250,6 +250,7 @@ class Reference:
         """Format the reference correctly."""
         authors_and_title = f"{concatenate_authors(self.abbreviated_authors)}, \\textit{{{self.title}}}"
         volume = f"\\textbf{{{self.volume}}}"
+        reference = ""
         if self.crossref_data:
             if self.item_type == "journal-article":
                 # J. Stat. Mech. has a different citation style.
@@ -265,6 +266,8 @@ class Reference:
                 reference = f"{authors_and_title}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
             elif self.item_type == "book-chapter":
                 reference = f"{authors_and_title}, in {self.journal}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
+            else:
+                reference = f"{authors_and_title}, {self.short_journal} {volume}, {self.page} ({self.year}), \doi{{{self.doi}}}."
         elif self.arxiv_data:
             reference = f"{authors_and_title}, \href{{https://arxiv.org/abs/{self.arxiv_id}}}{{arXiv:{self.arxiv_id}}}. % Has this been published somewhere?"
         else:

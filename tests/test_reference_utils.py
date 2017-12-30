@@ -118,10 +118,10 @@ class TestReferenceUtils(unittest.TestCase):
                                                     "\\newblock Nucl. Phys. B {\\bf 342}, 695--720 (1990)."
                                                     "\\\\ DOI: 10.1016/0550-3213(90)90333-9"), "tba1")
         self.assertIsNone(extract_bibitem_identifier("A.~Zamolodchikov, \\newblock "
-                                                    "{``Thermodynamic Bethe ansatz in relativistic models. "
-                                                    "Scaling   three state Potts and Lee-Yang models''}, "
-                                                    "\\newblock Nucl. Phys. B {\\bf 342}, 695--720 (1990)."
-                                                    "\\\\ DOI: 10.1016/0550-3213(90)90333-9"))
+                                                     "{``Thermodynamic Bethe ansatz in relativistic models. "
+                                                     "Scaling   three state Potts and Lee-Yang models''}, "
+                                                     "\\newblock Nucl. Phys. B {\\bf 342}, 695--720 (1990)."
+                                                     "\\\\ DOI: 10.1016/0550-3213(90)90333-9"))
 
     def test_author_concatenation(self):
         """Test that a list of authors is correctly concatenated."""
@@ -203,6 +203,15 @@ class TestReferenceClass(unittest.TestCase):
         self.assertEqual(reference.arxiv_id, "0705.0100v5")
         self.assertEqual(reference.formatted_reference, "D. P. Mehendale, \\textit{On Hadwiger Conjecture}, "
                          "\href{https://arxiv.org/abs/0705.0100v5}{arXiv:0705.0100v5}. % Has this been published somewhere?")
+
+    def test_multiple_references(self):
+        """Test that the inclusion of multiple references under a single bibitem is correctly handled."""
+        reference = Reference("\\bibitem{test} \\doi{10.1103/PhysRevA.81.013826}; \doi{10.1063/1.3216474}; \doi{10.1063/1.3216108}.")
+        reference.main()
+        self.assertEqual(reference.bibitem_identifier, "test")
+        self.assertEqual(reference.formatted_reference,
+                         "U. Schilling, J. von Zanthier and G. S. Agarwal, \textit{Measuring arbitrary-order coherences: Tomography of single-mode multiphoton polarization-entangled states}, Phys. Rev. A \textbf{81}, 013826 (2010), \doi{10.1103/PhysRevA.81.013826}; J.-S. Caux, \textit{Correlation functions of integrable models: A description of the ABACUS algorithm}, J. Math. Phys. \textbf{50}, 095214 (2009), \doi{10.1063/1.3216474}; M. Krüger and M. Rauscher, \textit{Diffusion of a sphere in a dilute solution of polymer coils}, J. Chem. Phys. \textbf{131}, 094902 (2009), \doi{10.1063/1.3216108}.")
+
 
 
 if __name__ == "__main__":
