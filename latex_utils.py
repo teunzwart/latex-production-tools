@@ -36,7 +36,7 @@ def remove_accented_characters(string):
 def open_webpage(address, exit_on_error=True):
     """Return succes/failure and the request server response for a webpage."""
     try:
-        server_response = requests.get(address, timeout=10)
+        server_response = requests.get(address, timeout=20)
         server_response.raise_for_status()
     except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, requests.exceptions.HTTPError) as e:
         if exit_on_error:

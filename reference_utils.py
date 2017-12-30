@@ -146,7 +146,6 @@ class Reference:
         """Extract DOI's and arXiv id's from a reference, and retrieve data, giving preference to Crossref data."""
         self.bibitem_identifier = extract_bibitem_identifier(self.bibitem_data)
         split_bibdata = self.bibitem_data.split(";")
-        print(split_bibdata)
         self.doi = extract_doi(self.bibitem_data)
         self.arxiv_id = extract_arxiv_id(self.bibitem_data)
         self.reformatted_original_reference = reformat_original_reference(self.bibitem_data)
@@ -231,7 +230,7 @@ class Reference:
         except (KeyError, IndexError):
             pass
         try:
-            self.page = self.crossref_data['page']
+            self.page = self.crossref_data['page'].split('-')[0]
         except KeyError:
             pass
         try:
@@ -251,6 +250,7 @@ class Reference:
         """Format the reference correctly."""
         authors_and_title = f"{concatenate_authors(self.abbreviated_authors)}, \\textit{{{self.title}}}"
         volume = f"\\textbf{{{self.volume}}}"
+        reference = ""
         if self.crossref_data:
             if self.item_type == "journal-article":
                 # J. Stat. Mech. has a different citation style.
@@ -266,6 +266,8 @@ class Reference:
                 reference = f"{authors_and_title}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
             elif self.item_type == "book-chapter":
                 reference = f"{authors_and_title}, in {self.journal}, {self.publisher}, {self.publisher_location}, ISBN {self.isbn} ({self.year}), \doi{{{self.doi}}}."
+            else:
+                reference = f"{authors_and_title}, {self.short_journal} {volume}, {self.page} ({self.year}), \doi{{{self.doi}}}."
         elif self.arxiv_data:
             reference = f"{authors_and_title}, \href{{https://arxiv.org/abs/{self.arxiv_id}}}{{arXiv:{self.arxiv_id}}}. % Has this been published somewhere?"
         else:
