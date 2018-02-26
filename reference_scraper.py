@@ -4,7 +4,6 @@ import argparse
 import re
 import webbrowser
 from multiprocessing import Pool
-import sys
 
 from reference_utils import Reference, extract_bibtex_items, abbreviate_authors
 from latex_utils import read_latex_file, remove_accented_characters
@@ -54,38 +53,24 @@ class ReferenceScraper:
                 self.check_manually.append(bibentry)
         self.unique_names = get_unique_names(self.names)
         print(f"The timely references were written by {len(self.names)} authors, of which {len(self.unique_names)} are unique.")
+        if not self.debug:
+            self.open_google_pages()
+        else:
+            print(self.unique_names)
         if len(self.check_manually) == 0:
             print("There are no reference to check manually.")
         else:
-            print(f"The following {len(self.check_manually)} references have to be checked by hand:")
+            print("The following references have to be checked by hand:")
             for reference in self.check_manually:
                 print(reference, '\n')
-            input("Press enter to continue...")
-        print("The following list of names can be filtered for already invited/registred people on https://scipost.org/contributors_filter")
-        # Reverse order of first and last name. This doesn't work well for multiple last names.
-        for k in self.unique_names:
-            new_name = k.split(' ')[-1] + ", " + " ".join(k.split(' ')[:-1])
-            print(new_name)
-        print("Please paste the filtered names below (press enter and then CTRL + D to continue afterwards):")
-        filtered_names = sys.stdin.readlines()
-        filtered_names = "".join(filtered_names)
-        good_order = []
-        for z in filtered_names.split("\n"):
-            ordered_name = " ".join(z.split(', ')[1:]) + " " + z.split(", ")[0]
-            good_order.append(ordered_name)
-        if not self.debug:
-            self.open_google_pages(good_order)
-        else:
-            print(good_order)
+        return self.unique_names, self.check_manually
 
-        return good_order, self.check_manually
-
-    def open_google_pages(self, filtered_names):
+    def open_google_pages(self):
         print("Opening Google search pages (in batches of 10):")
-        for i, name in enumerate(sorted(list(filtered_names), key=lambda x: x.split(' ')[-1])):
+        for i, name in enumerate(sorted(list(self.unique_names), key=lambda x: x.split(' ')[-1])):
             webbrowser.open(f"https://www.google.com/search?q={name.replace(' ', '+')}+physics")
             if (i + 1) % 10 == 0:
-                input(f"Opening {i+1}/{len(filtered_names)}. Press enter to open next 10...")
+                input(f"Opening {i+1}/{len(self.unique_names)}. Press enter to open next 10...")
 
 
 if __name__ == '__main__':
