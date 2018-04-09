@@ -28,4 +28,6 @@ Any references that could not be processed are shown at the end of the program t
 python reference_scraper.py latex_file
 ```
 
+There is also an option `--add_arxiv`, if you want to add arXiv references as well.
+
 

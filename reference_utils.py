@@ -117,7 +117,7 @@ def remove_arxiv_id_version(arxiv_id):
 
 class Reference:
     """Extract data for a bibtex entry, and reformat it for use in publications."""
-    def __init__(self, bibitem_data):
+    def __init__(self, bibitem_data, add_arxiv=False):
         self.bibitem_data = bibitem_data
         self.bibitem_identifier = None
         self.item_type = None
@@ -141,6 +141,7 @@ class Reference:
         self.isbn = None
         self.formatted_reference = None
         self.reformatted_original_reference = None
+        self.add_arxiv = add_arxiv
 
     def main(self):
         """Extract DOI's and arXiv id's from a reference, and retrieve data, giving preference to Crossref data."""
@@ -253,9 +254,14 @@ class Reference:
         reference = ""
         if self.crossref_data:
             if self.item_type == "journal-article":
-                # J. Stat. Mech. has a different citation style.
+                # J. Stat. Mech. and JHEP have a different citation style.
                 if "Journal of Statistical Mechanics" in self.journal:
                     reference = f"{authors_and_title}, {self.short_journal} {self.page} ({self.year}), \doi{{{self.doi}}}."
+                elif "Journal of High Energy Physics" in self.journal:
+                    if self.article_number:
+                        reference = f"{authors_and_title}, {self.short_journal} {self.article_number.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
+                    else:
+                        reference = f"{authors_and_title}, {self.short_journal} {self.page.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
                 elif self.page:
                     reference = f"{authors_and_title}, {self.short_journal} {volume}, {self.page} ({self.year}), \doi{{{self.doi}}}."
                 elif self.article_number:
@@ -275,3 +281,6 @@ class Reference:
 
         # Remove any newlines which are included in the formatted reference.
         self.formatted_reference = re.sub(r"\n", "", reference)
+
+        if self.add_arxiv and self.arxiv_id and self.crossref_data:
+            self.formatted_reference = self.formatted_reference.strip(".") + f", [\href{{https://arxiv.org/abs/{self.arxiv_id}}}{{arXiv:{self.arxiv_id}}}]."

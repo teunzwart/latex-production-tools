@@ -10,5 +10,6 @@ JOURNAL_ABBRVS = {
     "Nature Physics": "Nat. Phys.",
     "Nuclear Physics B": "Nucl. Phys. B",
     "Physics Letters A": "Phys. Lett. A",
-    "Physics Letters B": "Phys. Lett. B"
+    "Physics Letters B": "Phys. Lett. B",
+    "Journal of High Energy Physics": "J. High Energ. Phys."
 }
