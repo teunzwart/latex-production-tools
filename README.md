@@ -5,10 +5,6 @@ Tools to work with LaTeX files. Tools include automatic publication preparation,
 At least Python 3.6 is required for [format strings](https://www.python.org/dev/peps/pep-0498/) and to easily handle unicode strings.
 External dependencies are `bs4`, `requests` and `html5lib`.
 
-## Setup
-1. Clone the repository
-2. Set the relevant paths in `paths_template.py` and rename it to `paths.py`
-
 ### Tests
 
 Run unittests with 
@@ -28,6 +24,22 @@ Any references that could not be processed are shown at the end of the program t
 python reference_scraper.py latex_file
 ```
 
+## LaTeX reference formatter
+
+Automatically format references correctly. The system relies on DOIs and arXiv identifiers to extract information from the correct databases.
+If a paper has been published and the arXiv page updated with the DOI, the scraper will prefer the DOI data over the arXiv data.
+
+### Usage
+    
+```
+python reference_formatter.py latex_file
+```
+
+
 There is also an option `--add_arxiv`, if you want to add arXiv references as well.
 
 
+## TODO
+
+- Handle references with collaboration names (such as [[http://api.crossref.org/works/10.1007%252FJHEP11%25282015%2529206]])
+- Handle multiple references in the same bibitem
