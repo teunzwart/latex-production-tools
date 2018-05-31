@@ -11,5 +11,10 @@ JOURNAL_ABBRVS = {
     "Nuclear Physics B": "Nucl. Phys. B",
     "Physics Letters A": "Phys. Lett. A",
     "Physics Letters B": "Phys. Lett. B",
-    "Journal of High Energy Physics": "J. High Energ. Phys."
+    "Journal of High Energy Physics": "J. High Energ. Phys.",
+    "Journal of Magnetism and Magnetic Materials": "J. Magn. Magn. Mater.",
+    "Nature Communications": "Nat. Commun.",
+    "Scientific Reports": "Sci. Rep.",
+    "Journal of Applied Physics": "J. Appl. Phys.",
+    "Physics Reports": "Phys. Rep."
 }
