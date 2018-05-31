@@ -284,3 +284,4 @@ class Reference:
 
         if self.add_arxiv and self.arxiv_id and self.crossref_data:
             self.formatted_reference = self.formatted_reference.strip(".") + f", [\href{{https://arxiv.org/abs/{self.arxiv_id}}}{{arXiv:{self.arxiv_id}}}]."
+
