@@ -41,5 +41,5 @@ There is also an option `--add_arxiv`, if you want to add arXiv references as we
 
 ## TODO
 
-- Handle references with collaboration names (such as [[http://api.crossref.org/works/10.1007%252FJHEP11%25282015%2529206]])
 - Handle multiple references in the same bibitem
+- Add option to format single reference
