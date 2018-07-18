@@ -247,17 +247,28 @@ class Reference:
         except KeyError:
             pass
 
+    def JHEP_volume_number(self):
+        """
+        The volume number of JHEP is the month of publishing.
+        This number is not available from the Crossref API, so has to be 
+        extracted from the DOI.
+        """
+        volume_regex = re.compile(r"""JHEP([0-9]{2})\(""", re.VERBOSE)
+        volume = volume_regex.findall(self.doi)[0]
+        return volume
+
     def special_case_formatting(self, authors_and_title):
         "Format journals with a different citation style."
         if "Journal of Statistical Mechanics" in self.journal:
             reference = f"{authors_and_title}, {self.short_journal} {self.page} ({self.year}), \doi{{{self.doi}}}."
             return reference
         elif "Journal of High Energy Physics" in self.journal or "JHEP" in self.journal:
+            volume = self.JHEP_volume_number()
             if self.article_number:
-                reference = f"{authors_and_title}, {self.short_journal} {self.article_number.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
+                reference = f"{authors_and_title}, {self.short_journal} \\textbf{{{volume}}}, {self.article_number.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
                 return reference
             else:
-                reference = f"{authors_and_title}, {self.short_journal} {self.page.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
+                reference = f"{authors_and_title}, {self.short_journal} \\textbf{{{volume}}}, {self.page.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
                 return reference
 
         return None
