@@ -254,7 +254,7 @@ class Reference:
         extracted from the DOI.
         """
         volume_regex = re.compile(r"""JHEP([0-9]{2})\(""", re.VERBOSE)
-        volume = volume_regex.findall(self.doi)[0]
+        volume = volume_regex.search(self.doi)
         return volume
 
     def special_case_formatting(self, authors_and_title):
