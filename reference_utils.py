@@ -92,7 +92,7 @@ def reformat_original_reference(original_reference):
     text = re.sub(r"\\bibitem{(.*?)}|\\newblock", " ", original_reference)
     text = re.sub(r"\n", " ", text)
     text = re.sub(r" +", " ", text.strip())
-    text = re.sub(r"(\\eprint{.*?})", r"\n%\1\n", text)  # Comment out \eprint, since it's not provided by the bibstyle and makes LaTeX choke during compilation.
+    # text = re.sub(r"(\\eprint{.*?})", r"\n%\1\n", text)  # Comment out \eprint, since it's not provided by the bibstyle and makes LaTeX choke during compilation.
     return text
 
 
@@ -253,9 +253,15 @@ class Reference:
         This number is not available from the Crossref API, so has to be 
         extracted from the DOI.
         """
-        volume_regex = re.compile(r"""JHEP([0-9]{2})\(""", re.VERBOSE)
-        volume = volume_regex.search(self.doi)
-        return volume
+        volume_regex = re.compile(r"""JHEP([0-9]{2})\(  # New style DOIs
+        |1126-6708\/[0-9]{4}\/([0-9]{2})\/  # Old style DOIs
+        """, re.VERBOSE)
+        try:
+            volume = volume_regex.search(self.doi)
+            volume = list(filter(lambda x: x is not None, volume.groups()))[0]
+            return volume
+        except AttributeError:
+            return None
 
     def special_case_formatting(self, authors_and_title):
         "Format journals with a different citation style."
