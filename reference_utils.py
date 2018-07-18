@@ -247,6 +247,21 @@ class Reference:
         except KeyError:
             pass
 
+    def special_case_formatting(self, authors_and_title):
+        "Format journals with a different citation style."
+        if "Journal of Statistical Mechanics" in self.journal:
+            reference = f"{authors_and_title}, {self.short_journal} {self.page} ({self.year}), \doi{{{self.doi}}}."
+            return reference
+        elif "Journal of High Energy Physics" in self.journal or "JHEP" in self.journal:
+            if self.article_number:
+                reference = f"{authors_and_title}, {self.short_journal} {self.article_number.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
+                return reference
+            else:
+                reference = f"{authors_and_title}, {self.short_journal} {self.page.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
+                return reference
+
+        return None
+
     def format_reference(self):
         """Format the reference correctly."""
         authors_and_title = f"{concatenate_authors(self.abbreviated_authors)}, \\textit{{{self.title}}}"
@@ -254,14 +269,9 @@ class Reference:
         reference = ""
         if self.crossref_data:
             if self.item_type == "journal-article":
-                # J. Stat. Mech. and JHEP have a different citation style.
-                if "Journal of Statistical Mechanics" in self.journal:
-                    reference = f"{authors_and_title}, {self.short_journal} {self.page} ({self.year}), \doi{{{self.doi}}}."
-                elif "Journal of High Energy Physics" in self.journal:
-                    if self.article_number:
-                        reference = f"{authors_and_title}, {self.short_journal} {self.article_number.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
-                    else:
-                        reference = f"{authors_and_title}, {self.short_journal} {self.page.zfill(3)} ({self.year}), \doi{{{self.doi}}}."
+                special_reference = self.special_case_formatting(authors_and_title)
+                if special_reference:
+                    reference = special_reference
                 elif self.page:
                     reference = f"{authors_and_title}, {self.short_journal} {volume}, {self.page} ({self.year}), \doi{{{self.doi}}}."
                 elif self.article_number:

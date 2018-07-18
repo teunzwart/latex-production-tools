@@ -16,5 +16,6 @@ JOURNAL_ABBRVS = {
     "Nature Communications": "Nat. Commun.",
     "Scientific Reports": "Sci. Rep.",
     "Journal of Applied Physics": "J. Appl. Phys.",
-    "Physics Reports": "Phys. Rep."
+    "Physics Reports": "Phys. Rep.",
+    "Computer Physics Communications": "Comput. Phys. Commun."
 }
