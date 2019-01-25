@@ -17,7 +17,7 @@ def read_latex_file(latex_file):
 
 
 def write_latex_file(latex_file, latex_source):
-    with open(latex_file, 'w') as open_file:
+    with open(latex_file, 'w', encoding="utf-8") as open_file:
         open_file.write(latex_source)
 
 
